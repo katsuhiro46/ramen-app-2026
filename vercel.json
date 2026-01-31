@@ -1,7 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "app.py": {
+    "api/app.py": {
       "runtime": "vercel-python@0.7.0"
     }
   },
@@ -12,7 +12,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/app.py"
+      "dest": "/api/app.py"
     }
   ]
 }
