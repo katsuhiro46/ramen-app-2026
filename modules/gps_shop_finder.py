@@ -1,0 +1,288 @@
+"""
+GPS座標から店名を特定するモジュール - ラーメン店限定版
+非ラーメン店は除外する
+"""
+import requests
+from typing import Optional, List, Dict
+import math
+import re
+
+
+def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """2点間の距離を計算（メートル）"""
+    R = 6371000
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    
+    a = math.sin(delta_phi/2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    
+    return R * c
+
+
+def is_ramen_shop(name: str, cuisine: str = '') -> bool:
+    """ラーメン店かどうか判定"""
+    ramen_keywords = [
+        'ラーメン', 'らーめん', 'らぁめん', '拉麺',
+        '麺', '中華そば', 'つけ麺', '担々', 'タンタン',
+        '麺屋', '麺や', '麺処',
+        'ramen', 'noodle'
+    ]
+    
+    name_lower = name.lower()
+    cuisine_lower = cuisine.lower()
+    
+    for kw in ramen_keywords:
+        if kw in name or kw in name_lower or kw in cuisine_lower:
+            return True
+    
+    return False
+
+
+def is_excluded_shop(name: str) -> bool:
+    """除外するべき店舗か判定"""
+    excluded = [
+        'マクドナルド', 'McDonald', 'ドミノ', 'ピザ', 'Pizza',
+        'ケンタッキー', 'KFC', 'すき家', '吉野家', '松屋',
+        'ガスト', 'サイゼリヤ', 'デニーズ', 'ジョナサン',
+        'スターバックス', 'ドトール', 'タリーズ',
+        'コンビニ', 'セブン', 'ファミマ', 'ローソン'
+    ]
+    
+    for ex in excluded:
+        if ex in name:
+            return True
+    
+    return False
+
+
+def search_nearby_ramen(lat: float, lon: float, radius: int = 300) -> List[Dict]:
+    """
+    Overpass APIで周辺のラーメン店・麺類店を検索
+    """
+    candidates = []
+    
+    try:
+        # ラーメン・麺類に限定した検索クエリ
+        query = f"""
+        [out:json][timeout:15];
+        (
+          node["cuisine"="ramen"](around:{radius},{lat},{lon});
+          node["cuisine"="noodle"](around:{radius},{lat},{lon});
+          node["cuisine"="noodles"](around:{radius},{lat},{lon});
+          node["cuisine"="japanese"](around:{radius},{lat},{lon});
+          node["amenity"="restaurant"](around:{radius},{lat},{lon});
+          node["amenity"="fast_food"](around:{radius},{lat},{lon});
+        );
+        out body;
+        """
+        
+        url = "https://overpass-api.de/api/interpreter"
+        print(f"[Overpass] Searching ramen shops within {radius}m")
+        
+        response = requests.post(url, data={'data': query}, timeout=20)
+        data = response.json()
+        
+        elements = data.get('elements', [])
+        print(f"[Overpass] Found {len(elements)} elements")
+        
+        for elem in elements:
+            tags = elem.get('tags', {})
+            name = tags.get('name', tags.get('name:ja', ''))
+            cuisine = tags.get('cuisine', '')
+            
+            if not name:
+                continue
+            
+            # 除外リストに該当するものはスキップ
+            if is_excluded_shop(name):
+                print(f"  Excluded: {name}")
+                continue
+            
+            elem_lat = elem.get('lat', lat)
+            elem_lon = elem.get('lon', lon)
+            distance = haversine_distance(lat, lon, elem_lat, elem_lon)
+            
+            # ラーメン店かどうか判定
+            is_ramen = is_ramen_shop(name, cuisine)
+            
+            candidates.append({
+                'name': name,
+                'distance': distance,
+                'lat': elem_lat,
+                'lon': elem_lon,
+                'is_ramen': is_ramen,
+                'cuisine': cuisine,
+                'source': 'overpass'
+            })
+            
+            ramen_mark = "🍜" if is_ramen else "  "
+            print(f"  {ramen_mark} {name} ({distance:.0f}m) cuisine={cuisine}")
+        
+    except Exception as e:
+        print(f"[Overpass] Error: {e}")
+    
+    return candidates
+
+
+def find_shop_by_gps(lat: float, lon: float, ocr_text: str = None) -> Dict:
+    """
+    GPS座標からラーメン店名を特定（メイン関数）
+    
+    ルール:
+    1. まずラーメン店を優先検索
+    2. 見つからなければ全飲食店を候補表示
+    3. ユーザーが候補から選択可能
+    """
+    print("=" * 50)
+    print(f"[GPS Search] {lat:.6f}, {lon:.6f}")
+    if ocr_text:
+        print(f"[OCR] {ocr_text[:50]}...")
+    print("=" * 50)
+    
+    result = {
+        'shop_name': None,
+        'gps_detected': True,
+        'lat': lat,
+        'lon': lon,
+        'distance': None,
+        'method': 'none',
+        'candidates': [],
+        'debug_info': f"GPS: {lat:.6f}, {lon:.6f}"
+    }
+    
+    all_candidates = []
+    
+    # Step 1: 200m以内を検索
+    print("\n--- Restaurant Search (200m) ---")
+    candidates_200 = search_nearby_ramen(lat, lon, 200)
+    all_candidates.extend(candidates_200)
+    
+    # Step 2: 見つからなければ500mに拡大
+    if len(all_candidates) < 3:
+        print("\n--- Restaurant Search (500m) ---")
+        candidates_500 = search_nearby_ramen(lat, lon, 500)
+        for c in candidates_500:
+            if c['name'] not in [x['name'] for x in all_candidates]:
+                all_candidates.append(c)
+    
+    # Step 3: まだ少なければ1000mに拡大
+    if len(all_candidates) < 3:
+        print("\n--- Restaurant Search (1000m) ---")
+        candidates_1000 = search_nearby_ramen(lat, lon, 1000)
+        for c in candidates_1000:
+            if c['name'] not in [x['name'] for x in all_candidates]:
+                all_candidates.append(c)
+    
+    print(f"\n[Total] {len(all_candidates)} candidates")
+    
+    # 50m以内の店舗を最優先
+    within_50m = [c for c in all_candidates if c.get('distance', 9999) <= 50]
+    beyond_50m = [c for c in all_candidates if c.get('distance', 9999) > 50]
+    
+    # それぞれラーメン店とその他に分類
+    within_50m_ramen = [c for c in within_50m if c.get('is_ramen')]
+    within_50m_other = [c for c in within_50m if not c.get('is_ramen')]
+    beyond_50m_ramen = [c for c in beyond_50m if c.get('is_ramen')]
+    beyond_50m_other = [c for c in beyond_50m if not c.get('is_ramen')]
+    
+    # 距離順にソート
+    within_50m_ramen.sort(key=lambda x: x.get('distance', 9999))
+    within_50m_other.sort(key=lambda x: x.get('distance', 9999))
+    beyond_50m_ramen.sort(key=lambda x: x.get('distance', 9999))
+    beyond_50m_other.sort(key=lambda x: x.get('distance', 9999))
+    
+    # 優先順位:
+    # 1. 50m以内のラーメン店
+    # 2. 50m以内のその他飲食店
+    # 3. 50m以上のラーメン店
+    # 4. 50m以上のその他飲食店
+    all_sorted = within_50m_ramen + within_50m_other + beyond_50m_ramen + beyond_50m_other
+    
+    ramen_count = len(within_50m_ramen) + len(beyond_50m_ramen)
+    print(f"[Priority] 50m以内: {len(within_50m)}件, ラーメン店: {ramen_count}件")
+    
+    # デバッグ出力
+    print("\n=== All Candidates ===")
+    for i, c in enumerate(all_sorted[:5]):
+        ramen_mark = "🍜" if c.get('is_ramen') else "  "
+        print(f"  {i+1}. {ramen_mark} {c['name']} ({c['distance']:.0f}m)")
+
+    
+    # 結果を設定
+    result['candidates'] = all_sorted[:5]
+    
+    # 選択ロジック
+    if within_50m_ramen:
+        # 50m以内にラーメン店がある場合は自動選択
+        best = within_50m_ramen[0]
+        result['shop_name'] = best['name']
+        result['distance'] = best['distance']
+        result['method'] = 'ramen_50m'
+        result['debug_info'] = f"GPS: {lat:.6f}, {lon:.6f} | {best['name']} ({best['distance']:.0f}m)"
+        print(f"\n✅ Auto-selected (50m ramen): {best['name']} ({best['distance']:.0f}m)")
+    elif within_50m_other:
+        # 50m以内に他の飲食店がある場合も自動選択（確認用）
+        best = within_50m_other[0]
+        result['shop_name'] = best['name']
+        result['distance'] = best['distance']
+        result['method'] = 'restaurant_50m'
+        result['debug_info'] = f"GPS: {lat:.6f}, {lon:.6f} | {best['name']} ({best['distance']:.0f}m) ※要確認"
+        print(f"\n⚠️ Auto-selected (50m other): {best['name']} ({best['distance']:.0f}m)")
+    elif beyond_50m_ramen:
+        # 50m以上のラーメン店
+        best = beyond_50m_ramen[0]
+        result['shop_name'] = best['name']
+        result['distance'] = best['distance']
+        result['method'] = 'ramen_search'
+        result['debug_info'] = f"GPS: {lat:.6f}, {lon:.6f} | {best['name']} ({best['distance']:.0f}m)"
+        print(f"\n✅ Selected (ramen): {best['name']} ({best['distance']:.0f}m)")
+    elif all_sorted:
+        # その他の飲食店のみ
+        result['shop_name'] = None  # ユーザーに選択させる
+        result['method'] = 'needs_selection'
+        result['debug_info'] = f"GPS: {lat:.6f}, {lon:.6f} | ラーメン店なし（候補から選択してください）"
+        print("\n⚠️ No ramen shop found. User selection required.")
+
+    else:
+        # 飲食店が見つからない
+        result['shop_name'] = None
+        result['method'] = 'not_found'
+        result['debug_info'] = f"GPS: {lat:.6f}, {lon:.6f} | 周辺に飲食店が見つかりませんでした"
+        print("\n❌ No restaurant found nearby")
+    
+    return result
+
+
+
+def find_shop_without_gps(ocr_text: str = None) -> Dict:
+    """GPS情報なしの場合のフォールバック"""
+    result = {
+        'shop_name': None,
+        'gps_detected': False,
+        'lat': None,
+        'lon': None,
+        'distance': None,
+        'method': 'ocr_only',
+        'candidates': [],
+        'debug_info': "GPS未検出（EXIFなし）"
+    }
+    
+    print("[OCR Fallback] No GPS")
+    
+    if not ocr_text:
+        return result
+    
+    ramen_keywords = ['ラーメン', 'らーめん', 'らぁめん', '麺屋', '麺処', '中華そば']
+    
+    for line in ocr_text.split('\n'):
+        line = line.strip()
+        if 2 <= len(line) <= 25:
+            for kw in ramen_keywords:
+                if kw in line:
+                    result['shop_name'] = line
+                    result['debug_info'] += f" | OCR: {line}"
+                    return result
+    
+    return result

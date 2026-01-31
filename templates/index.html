@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>俺専用ラーメンアプリ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🍜 俺専用ラーメンアプリ</h1>
+            <p>ラーメン写真に店名ラベルを追加</p>
+        </header>
+
+        <main>
+            <!-- 写真アップロード -->
+            <section id="upload-section">
+                <input type="file" accept="image/*" id="camera-input"
+                    style="opacity: 0; position: absolute; z-index: -1;">
+                <label for="camera-input" class="drop-zone" id="drop-zone">
+                    <div class="drop-zone-content">
+                        <span class="camera-icon">📸</span>
+                        <p>タップして撮影<br>または写真を選択</p>
+                    </div>
+                </label>
+            </section>
+
+
+
+            <!-- 処理中 -->
+            <div id="loading" class="hidden">
+                <div class="auto-progress">
+                    <div class="spinner"></div>
+                    <p id="step-status">処理中...</p>
+                </div>
+            </div>
+
+            <!-- Step 1: クロップ編集画面 -->
+            <section id="crop-section" class="hidden">
+                <h2>✂️ 切り抜き完了</h2>
+                <div class="preview-container">
+                    <img id="crop-preview" src="" alt="Cropped Preview">
+                </div>
+                <div class="crop-actions">
+                    <p class="crop-info">ラーメン部分を切り抜きました</p>
+                    <button id="crop-done-btn" class="primary">✅ 加工完了 → 店名入力へ</button>
+                    <button id="crop-cancel-btn" class="secondary">キャンセル</button>
+                </div>
+            </section>
+
+            <!-- Step 2: 店名入力画面 -->
+            <section id="edit-section" class="hidden">
+                <h2>📝 店名を入力</h2>
+
+                <!-- 加工済み画像 -->
+                <div class="preview-container">
+                    <img id="preview-image" src="" alt="Cropped Image">
+                </div>
+
+                <!-- 店名入力 -->
+                <div class="edit-form">
+                    <label for="shop-name">店名</label>
+                    <input type="text" id="shop-name" placeholder="店名を入力してください">
+                    <p class="hint" id="edit-hint">💡 下のリストから店名をタップで反映できます</p>
+                    <button id="save-btn" class="primary">💾 この店名で保存</button>
+                    <button id="back-btn" class="secondary">← 戻る</button>
+                </div>
+            </section>
+
+            <!-- 保存完了画面 -->
+            <section id="result-section" class="hidden">
+                <h2>✅ 保存完了！</h2>
+                <div class="result-container">
+                    <img id="result-image" src="" alt="Result">
+                </div>
+                <div class="result-info">
+                    <p class="result-shop-name" id="result-shop-name"></p>
+                </div>
+                <div class="result-buttons">
+                    <a id="download-link" href="#" download class="button primary">💾 ダウンロード</a>
+                    <a id="share-btn" href="#" class="button share-btn">📤 共有</a>
+                    <button id="reset-btn" class="secondary">🍜 もう一杯</button>
+                </div>
+            </section>
+
+            <!-- 新店情報 -->
+            <section id="news-section" class="news-section">
+                <div class="section-header">
+                    <h2>🍜 北関東 最新オープン情報</h2>
+                    <p class="section-subtitle">📍 ナビボタンでGoogleマップが起動します</p>
+                </div>
+                <div id="shop-container" class="shop-container">
+                    <div class="loading-state">
+                        <div class="spinner-small"></div>
+                        <p>情報を取得中...</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+    <script src="/static/js/main.js"></script>
+</body>
+
+</html>

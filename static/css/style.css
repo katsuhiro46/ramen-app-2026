@@ -1,0 +1,868 @@
+:root {
+    --bg-color: #1a1a1a;
+    --card-bg: #2d2d2d;
+    --text-color: #ffffff;
+    --accent-color: #E60012;
+    /* Ramen Red */
+    --accent-hover: #ff1a1a;
+    --border-radius: 12px;
+}
+
+body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    max-width: 600px;
+    padding: 20px;
+    text-align: center;
+}
+
+header h1 {
+    margin-bottom: 5px;
+    font-size: 1.8rem;
+}
+
+header p {
+    color: #888;
+    margin-top: 0;
+    font-size: 0.9rem;
+}
+
+/* Upload Zone */
+.drop-zone {
+    display: block;
+    border: 2px dashed #555;
+    border-radius: var(--border-radius);
+    padding: 60px 20px;
+    margin: 40px 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: var(--card-bg);
+    text-align: center;
+}
+
+
+.drop-zone:hover,
+.drop-zone.dragover {
+    border-color: var(--accent-color);
+    background-color: #333;
+}
+
+/* input[type=file]はHTMLでinline styleで非表示 */
+
+
+/* Sections */
+section {
+    margin-bottom: 30px;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.hidden {
+    display: none;
+}
+
+/* Images */
+.preview-container,
+.result-container {
+    margin: 20px 0;
+    background: #000;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
+img {
+    max-width: 100%;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Controls */
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: var(--border-radius);
+}
+
+input[type="text"] {
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #555;
+    background: #333;
+    color: white;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+button,
+.button {
+    padding: 14px;
+    border-radius: 8px;
+    border: none;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+    text-decoration: none;
+    display: inline-block;
+}
+
+#process-btn,
+.primary {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+#process-btn:hover,
+.primary:hover {
+    background-color: var(--accent-hover);
+}
+
+.secondary {
+    background-color: transparent;
+    border: 1px solid #555;
+    color: #aaa;
+}
+
+.secondary:hover {
+    border-color: #888;
+    color: white;
+}
+
+/* Mode Buttons */
+.mode-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin: 30px 0;
+}
+
+.mode-btn {
+    padding: 25px 20px;
+    border-radius: 16px;
+    border: 2px solid transparent;
+    font-size: 1.2rem;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s;
+}
+
+.mode-btn.primary {
+    background: linear-gradient(135deg, #E60012, #ff4444);
+    color: white;
+    border-color: #ff6666;
+}
+
+.mode-btn.primary:hover {
+    transform: scale(1.02);
+    box-shadow: 0 8px 25px rgba(230, 0, 18, 0.4);
+}
+
+.mode-btn.secondary {
+    background: var(--card-bg);
+    color: #ccc;
+    border-color: #444;
+}
+
+.mode-btn small {
+    font-size: 0.8rem;
+    opacity: 0.8;
+    margin-top: 5px;
+}
+
+.mode-instruction {
+    color: #aaa;
+    margin-bottom: 10px;
+}
+
+/* Drag & Drop Styles */
+.shop-item {
+    cursor: grab;
+}
+
+.shop-item:active {
+    cursor: grabbing;
+}
+
+.shop-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.98);
+}
+
+.drag-handle {
+    color: #666;
+    margin-right: 8px;
+    cursor: grab;
+}
+
+input[type="text"].dragover {
+    border-color: #0f0 !important;
+    background: #2a4a2a !important;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+
+/* Camera Icon */
+.drop-zone-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.camera-icon {
+    font-size: 4rem;
+}
+
+/* Auto Progress */
+.auto-progress {
+    padding: 60px 20px;
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    margin: 30px 0;
+}
+
+.progress-steps {
+    margin-top: 20px;
+}
+
+#step-status {
+    font-size: 1.1rem;
+    color: #ccc;
+}
+
+/* Detection Info */
+.detection-info {
+    background: #2a4a2a;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+    color: #8f8;
+}
+
+/* Result Info */
+.result-info {
+    background: var(--card-bg);
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+}
+
+.result-info p {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.result-shop-name {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #fff;
+}
+
+/* Edit Form */
+.edit-form {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    margin-top: 20px;
+}
+
+.edit-form label {
+    display: block;
+    text-align: left;
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: #ccc;
+}
+
+.edit-form input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 1.3rem;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+
+.edit-form .hint {
+    font-size: 0.85rem;
+    color: #888;
+    text-align: left;
+    margin-bottom: 20px;
+}
+
+.edit-form button {
+    width: 100%;
+    margin-top: 10px;
+}
+
+/* Crop Actions */
+.crop-actions {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    margin-top: 20px;
+    text-align: center;
+}
+
+.crop-info {
+    color: #888;
+    margin-bottom: 15px;
+}
+
+.crop-actions button {
+    width: 100%;
+    margin-top: 10px;
+}
+
+
+/* Information Panel */
+.info-panel {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: var(--border-radius);
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.info-item {
+    margin-bottom: 12px;
+    text-align: left;
+}
+
+.info-item:last-child {
+    margin-bottom: 0;
+}
+
+.info-item label {
+    display: block;
+    font-size: 0.85rem;
+    color: #888;
+    margin-bottom: 5px;
+}
+
+.info-item label small {
+    color: #666;
+}
+
+.info-value {
+    font-size: 1rem;
+    color: #fff;
+    font-family: 'Courier New', monospace;
+}
+
+.info-ocr {
+    font-size: 0.9rem;
+    max-height: 60px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #ccc;
+}
+
+.info-candidates {
+    background: #222;
+    padding: 10px;
+    border-radius: 6px;
+}
+
+.info-candidates p {
+    margin: 5px 0;
+    font-size: 1rem;
+    color: #fff;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.info-candidates p:hover {
+    background: #444;
+}
+
+.info-candidates .rank-1 {
+    color: #0f0;
+    font-weight: bold;
+    background: #1a3a1a;
+}
+
+.info-candidates .rank-2,
+.info-candidates .rank-3 {
+    color: #ccc;
+}
+
+
+/* Result Buttons */
+.result-buttons {
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.result-buttons .button,
+.result-buttons button {
+    flex: 1;
+    min-width: 100px;
+}
+
+.share-btn {
+    background: #4CAF50;
+    color: white;
+}
+
+.share-btn:hover {
+    background: #45a049;
+}
+
+/* Loading */
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #333;
+    border-top: 4px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* News Section - Pro Tool Style */
+.news-section {
+    margin-top: 60px;
+}
+
+.section-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.section-header h2 {
+    margin: 0 0 6px 0;
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: #999;
+}
+
+.section-subtitle {
+    color: #555;
+    font-size: 0.75rem;
+    margin: 0;
+}
+
+.shop-container {
+    background: #1e1e1e;
+    border-radius: 8px;
+    padding: 8px 0;
+}
+
+.loading-state {
+    text-align: center;
+    padding: 40px;
+    color: #555;
+}
+
+.spinner-small {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #333;
+    border-top: 2px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 10px;
+}
+
+.execution-log {
+    display: none;
+}
+
+.shop-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.shop-item {
+    padding: 18px 16px;
+    border-bottom: 1px solid #333;
+    background: #1a1a1a;
+}
+
+.shop-item:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+.shop-item:last-child {
+    border-bottom: none;
+    border-radius: 0 0 8px 8px;
+}
+
+.shop-item:only-child {
+    border-radius: 8px;
+}
+
+.shop-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+/* PREFECTURE BADGES - Color Coded */
+.shop-area-badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    flex-shrink: 0;
+    /* Default */
+    background: var(--accent-color);
+    color: white;
+}
+
+/* 群馬: 赤 / 白 */
+.shop-area-badge[data-pref="gunma"] {
+    background: #E60012;
+    color: white;
+}
+
+/* 栃木: 青 / 白 */
+.shop-area-badge[data-pref="tochigi"] {
+    background: #0066CC;
+    color: white;
+}
+
+/* 埼玉: 黄 / 黒 */
+.shop-area-badge[data-pref="saitama"] {
+    background: #FFD700;
+    color: #000000;
+}
+
+/* 茨城: 緑 / 白 */
+.shop-area-badge[data-pref="ibaraki"] {
+    background: #228B22;
+    color: white;
+}
+
+/* SHOP NAME - Big, Bold, High Contrast */
+.shop-name {
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 1.15rem;
+    line-height: 1.4;
+}
+
+.shop-name:hover {
+    color: var(--accent-hover);
+}
+
+.shop-name-text {
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 1.1rem;
+    flex: 1;
+    cursor: pointer;
+}
+
+/* ナビボタン */
+.navi-btn {
+    background: #4285f4;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+
+.navi-btn:hover {
+    background: #3367d6;
+}
+
+/* 店名リンク（ラーメンデータベースへ） */
+.shop-name-link {
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 1.1rem;
+    flex: 1;
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.shop-name-link:hover {
+    color: #ff6b6b;
+    text-decoration: underline;
+}
+
+/* 店名入力ボタン */
+.set-name-btn {
+    background: #2a5a2a;
+    color: #8f8;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+
+.set-name-btn:hover {
+    background: #3a7a3a;
+}
+
+
+/* SUB INFO - Small, Subdued */
+.shop-meta {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    color: #777;
+    letter-spacing: 0.2px;
+}
+
+/* 店舗アイテムのクリック可能表示 */
+.shop-item {
+    padding: 18px 16px;
+    border-bottom: 1px solid #333;
+    background: #1a1a1a;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.shop-item:hover {
+    background: #2a2a2a;
+}
+
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #555;
+}
+
+.empty-state p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.empty-state small {
+    display: block;
+    margin-top: 6px;
+    color: #444;
+    font-size: 0.8rem;
+}
+
+/* ========================================
+   デバッグパネル（大きく見やすく）
+   ======================================== */
+.debug-panel {
+    background: #333;
+    border: 2px solid #555;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 30px 0;
+    text-align: left;
+}
+
+.debug-panel h3 {
+    margin: 0 0 15px 0;
+    font-size: 1.2rem;
+    color: #ffd700;
+    border-bottom: 1px solid #555;
+    padding-bottom: 10px;
+}
+
+.debug-item {
+    margin-bottom: 15px;
+}
+
+.debug-item label {
+    display: block;
+    font-weight: bold;
+    color: #aaa;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+.debug-value {
+    font-size: 1.1rem;
+    color: #0f0;
+    font-family: monospace;
+    background: #222;
+    padding: 8px 12px;
+    border-radius: 6px;
+    display: block;
+}
+
+.debug-value.no-gps {
+    color: #f00;
+}
+
+.debug-ocr {
+    font-size: 0.9rem;
+    max-height: 80px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.debug-candidates {
+    background: #222;
+    padding: 10px;
+    border-radius: 6px;
+}
+
+.debug-candidates p {
+    margin: 5px 0;
+    font-size: 1rem;
+    color: #fff;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.debug-candidates p:hover {
+    background: #444;
+}
+
+.debug-candidates .rank-1 {
+    color: #0f0;
+    font-weight: bold;
+    font-size: 1.1rem;
+    background: #1a3a1a;
+}
+
+.debug-candidates .rank-2,
+.debug-candidates .rank-3 {
+    color: #ccc;
+}
+
+
+/* 距離情報 */
+.distance-info {
+    background: #2a4a2a;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin: 10px 0;
+    text-align: center;
+}
+
+.distance-info p {
+    margin: 0;
+    font-size: 1rem;
+    color: #8f8;
+}
+
+/* ========================================
+   店名編集エリア
+   ======================================== */
+.shop-name-edit {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 15px 0;
+    padding: 10px;
+    background: #2d2d2d;
+    border-radius: 8px;
+}
+
+.shop-name-edit label {
+    font-weight: bold;
+    color: #aaa;
+    white-space: nowrap;
+}
+
+.shop-name-input {
+    flex: 1;
+    font-size: 1.2rem;
+    font-weight: bold;
+    background: transparent;
+    border: none;
+    border-bottom: 2px dashed #555;
+    color: #fff;
+    padding: 8px;
+    min-width: 0;
+}
+
+.shop-name-input:focus {
+    border-bottom: 2px solid #0f0;
+    outline: none;
+    background: #333;
+}
+
+.edit-btn {
+    background: #444;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.2s;
+}
+
+.edit-btn:hover {
+    background: #555;
+}
+
+/* 再加工ボタン */
+.reprocess-btn {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    background: linear-gradient(135deg, #4a7c59 0%, #2d5a3d 100%);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.reprocess-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(74, 124, 89, 0.4);
+}
+
+.reprocess-btn.hidden {
+    display: none;
+}

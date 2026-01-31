@@ -1,0 +1,7 @@
+ultralytics
+pillow
+geopy
+flask
+beautifulsoup4
+requests
+pytesseract
