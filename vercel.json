@@ -1,15 +1,20 @@
 {
   "version": 2,
-  "builds": [
+  "name": "ramen-app-final",
+  "regions": ["hnd1"],
+  "functions": {
+    "api/**/*.py": {
+      "memory": 3008,
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
     {
-      "src": "api/app.py",
-      "use": "@vercel/python"
+      "source": "/(.*)",
+      "destination": "/api/app"
     }
   ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/app.py"
-    }
-  ]
+  "env": {
+    "PYTHONUNBUFFERED": "1"
+  }
 }

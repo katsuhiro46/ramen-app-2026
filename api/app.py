@@ -1,11 +1,22 @@
 import os
+import sys
 import time
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
+
+# プロジェクトルートを sys.path に追加（Vercel環境対応）
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, BASE_DIR)
+
 from modules import gps_locator, cropper, labeler, news_scraper
 from modules import gps_shop_finder, ocr_reader
 
-app = Flask(__name__)
+# Flask アプリの初期化（templates と static のパスを明示的に指定）
+app = Flask(
+    __name__,
+    template_folder=os.path.join(BASE_DIR, 'templates'),
+    static_folder=os.path.join(BASE_DIR, 'static')
+)
 
 # Configuration - Vercel uses /tmp for temporary files
 VERCEL_TMP_BASE = '/tmp'

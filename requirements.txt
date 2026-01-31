@@ -1,7 +1,7 @@
-ultralytics
-pillow
-geopy
-flask
-beautifulsoup4
-requests
-pytesseract
+flask==3.0.0
+pillow==10.1.0
+geopy==2.4.1
+beautifulsoup4==4.12.2
+requests==2.31.0
+pytesseract==0.3.10
+werkzeug==3.0.1
