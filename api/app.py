@@ -1,21 +1,11 @@
 import os
-import sys
 import time
-
-# Add parent directory to path for module imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from modules import gps_locator, cropper, labeler, news_scraper
 from modules import gps_shop_finder, ocr_reader
 
-# Get parent directory for templates and static files
-PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-app = Flask(__name__, 
-            template_folder=os.path.join(PARENT_DIR, 'templates'),
-            static_folder=os.path.join(PARENT_DIR, 'static'))
+app = Flask(__name__)
 
 # Configuration - Vercel uses /tmp for temporary files
 VERCEL_TMP_BASE = '/tmp'
