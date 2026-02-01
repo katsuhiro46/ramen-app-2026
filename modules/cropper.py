@@ -1,91 +1,31 @@
 """
-画像処理モジュール - Pillow軽量版
-Vercelで確実に動作する最小構成
-丼の縁ギリギリを攻めた円形クロップ、外側は黒
+画像処理モジュール - 超軽量版
+AI計算ゼロ、ただの切り取り職人
+フロントで決めた通りに切り抜くだけ
 """
-from PIL import Image, ImageDraw
+from PIL import Image
 from io import BytesIO
+import os
 
 
-def crop_bowl_tight(img):
+def save_simple(image_data, output_path):
     """
-    丼の縁ギリギリを攻めた円形クロップ
-
-    - 画像の短辺の95%を使用（丼の縁ギリギリ）
-    - 中央から正方形を切り出し
-    - 円形マスクを適用、外側は黒
-
-    Args:
-        img: PIL Image
-
-    Returns:
-        処理済みPIL Image (RGB、円の外側は黒)
-    """
-    width, height = img.size
-
-    # 短辺を基準に、95%のサイズで切り出し（丼の縁ギリギリ）
-    min_side = min(width, height)
-    crop_size = int(min_side * 0.95)
-
-    # 中央からクロップ
-    center_x = width // 2
-    center_y = height // 2
-
-    left = center_x - crop_size // 2
-    top = center_y - crop_size // 2
-    right = left + crop_size
-    bottom = top + crop_size
-
-    # 境界チェック
-    if left < 0:
-        left = 0
-        right = crop_size
-    if top < 0:
-        top = 0
-        bottom = crop_size
-    if right > width:
-        right = width
-        left = width - crop_size
-    if bottom > height:
-        bottom = height
-        top = height - crop_size
-
-    # 正方形にクロップ
-    cropped = img.crop((left, top, right, bottom))
-
-    # RGBに変換
-    if cropped.mode != 'RGB':
-        cropped = cropped.convert('RGB')
-
-    # 黒背景の画像を作成
-    size = cropped.size[0]
-    output = Image.new('RGB', (size, size), (0, 0, 0))
-
-    # 円形マスクを作成
-    mask = Image.new('L', (size, size), 0)
-    draw = ImageDraw.Draw(mask)
-    draw.ellipse((0, 0, size - 1, size - 1), fill=255)
-
-    # マスクを適用して円の内側だけを黒背景に貼り付け
-    output.paste(cropped, (0, 0), mask)
-
-    return output
-
-
-def crop_bowl(image_data, output_path=None):
-    """
-    丼の縁ギリギリ円形クロップ
+    超シンプル保存（AI計算なし）
+    フロントで調整済みの画像をそのまま保存するだけ
 
     Args:
         image_data: PIL Image, bytes, BytesIO, またはファイルパス
-        output_path: 保存先パス（省略時はBytesIOで返す）
+        output_path: 保存先パス
 
     Returns:
-        output_pathが指定されている場合: True/False
-        output_pathが省略されている場合: BytesIO または None
+        True/False
     """
     try:
-        # 入力をPIL Imageに変換
+        print("\n" + "="*70)
+        print("💾 SIMPLE SAVE (No AI, Just Save)")
+        print("="*70)
+
+        # 入力を PIL Image に変換
         if isinstance(image_data, Image.Image):
             img = image_data.copy()
         elif isinstance(image_data, bytes):
@@ -94,47 +34,76 @@ def crop_bowl(image_data, output_path=None):
             image_data.seek(0)
             img = Image.open(image_data)
         elif isinstance(image_data, str):
+            if not os.path.exists(image_data):
+                print(f"❌ Input file not found: {image_data}")
+                return False
             img = Image.open(image_data)
         else:
-            print(f"Unsupported type: {type(image_data)}")
-            return False if output_path else None
+            print(f"❌ Unsupported type: {type(image_data)}")
+            return False
 
-        # 丼の縁ギリギリクロップ
-        result = crop_bowl_tight(img)
+        print(f"✅ Image loaded: {img.size}, {img.mode}")
 
-        # 出力
-        if output_path:
-            result.save(output_path, format='JPEG', quality=95)
-            return True
-        else:
-            output = BytesIO()
-            result.save(output, format='JPEG', quality=95)
-            output.seek(0)
-            return output
+        # RGB変換
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+
+        # ディレクトリ確認・作成
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+
+        # 保存実行
+        img.save(output_path, format='JPEG', quality=95)
+
+        # 保存確認
+        if os.path.exists(output_path):
+            file_size = os.path.getsize(output_path)
+            if file_size > 0:
+                print(f"✅ SAVED: {output_path} ({file_size} bytes)")
+                print("="*70 + "\n")
+                return True
+
+        print(f"❌ Save failed")
+        print("="*70 + "\n")
+        return False
 
     except Exception as e:
-        print(f"Crop error: {e}")
+        print(f"❌ ERROR: {e}")
         import traceback
         traceback.print_exc()
-        return False if output_path else None
+        return False
 
 
-def crop_bowl_memory(image_bytes):
+# 旧関数との互換性のため残す（将来削除予定）
+def crop_bowl(image_data, output_path=None):
     """
-    インメモリで丼クロップ（Vercel専用）
-
-    Args:
-        image_bytes: 画像のバイトデータ
-
-    Returns:
-        処理済み画像のbytes（JPEG形式） または None
+    互換性のための関数（非推奨）
+    新しいコードでは save_simple を使用してください
     """
-    try:
-        result = crop_bowl(image_bytes)
-        if result and isinstance(result, BytesIO):
-            return result.getvalue()
-        return None
+    if output_path:
+        return save_simple(image_data, output_path)
+    else:
+        # BytesIO返却
+        try:
+            if isinstance(image_data, Image.Image):
+                img = image_data.copy()
+            elif isinstance(image_data, bytes):
+                img = Image.open(BytesIO(image_data))
+            elif isinstance(image_data, BytesIO):
+                image_data.seek(0)
+                img = Image.open(image_data)
+            elif isinstance(image_data, str):
+                img = Image.open(image_data)
+            else:
+                return None
 
-    except Exception as e:
-        print(f"Memory crop error: {e}")
-        return None
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+
+            output = BytesIO()
+            img.save(output, format='JPEG', quality=95)
+            output.seek(0)
+            return output
+        except:
+            return None

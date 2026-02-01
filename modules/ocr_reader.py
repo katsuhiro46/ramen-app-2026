@@ -23,29 +23,34 @@ except ImportError:
 def extract_text_from_image(image_path: str) -> Optional[str]:
     """
     画像からテキストを抽出（日本語OCR）
+    Vercel環境（Tesseractなし）でも安全に動作
     """
     if not OCR_AVAILABLE:
-        print("OCR not available")
+        print("OCR not available (pytesseract not imported)")
         return None
-    
+
     try:
         print(f"Running OCR on: {image_path}")
-        
+
         image = Image.open(image_path)
-        
+
         # 画像を前処理（コントラスト向上）
         # image = image.convert('L')  # グレースケール
-        
+
         # 日本語+英語でOCR
         text = pytesseract.image_to_string(image, lang='jpn+eng')
-        
+
         if text:
             print(f"OCR result (first 100 chars): {text[:100]}")
         else:
             print("OCR returned empty result")
-        
+
         return text.strip() if text else None
-        
+
+    except FileNotFoundError as e:
+        # Tesseract実行ファイルが見つからない（Vercel環境）
+        print(f"Tesseract not found (expected in Vercel): {e}")
+        return None
     except Exception as e:
         print(f"OCR error: {e}")
         return None
@@ -112,15 +117,20 @@ def clean_ocr_name(text: str) -> str:
 def find_shop_name_from_image(image_path: str) -> Optional[str]:
     """
     画像から店名を抽出するメイン関数
+    Vercel環境でもクラッシュせずNoneを返す
     """
     print(f"=== OCR Shop Finder: {image_path} ===")
-    
-    text = extract_text_from_image(image_path)
-    if text:
-        result = find_shop_name_in_text(text)
-        if result:
-            print(f"=== OCR Result: {result} ===")
-            return result
-    
+
+    try:
+        text = extract_text_from_image(image_path)
+        if text:
+            result = find_shop_name_in_text(text)
+            if result:
+                print(f"=== OCR Result: {result} ===")
+                return result
+    except Exception as e:
+        print(f"OCR shop finder error (failsafe): {e}")
+        return None
+
     print("OCR could not extract shop name")
     return None

@@ -432,6 +432,45 @@ def get_news():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/simple-crop', methods=['POST'])
+def simple_crop():
+    """
+    超シンプルクロップエンドポイント
+    フロントで調整済みの画像をそのまま保存するだけ（AI計算ゼロ）
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    try:
+        # ファイル保存
+        filename = secure_filename(file.filename)
+        unique_filename = f"{int(time.time())}_{filename}"
+        filepath = os.path.join(app.config['OUTPUT_FOLDER'], unique_filename)
+
+        # バイナリで保存
+        file_data = file.read()
+        with open(filepath, 'wb') as f:
+            f.write(file_data)
+
+        print(f"✅ Simple crop saved: {filepath} ({len(file_data)} bytes)")
+
+        return jsonify({
+            'success': True,
+            'filename': unique_filename,
+            'image_url': f'/results/{unique_filename}'
+        })
+
+    except Exception as e:
+        print(f"Simple crop error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=3000)
 

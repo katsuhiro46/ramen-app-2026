@@ -21,7 +21,7 @@
         <main>
             <!-- 写真アップロード -->
             <section id="upload-section">
-                <input type="file" accept="image/*" id="camera-input"
+                <input type="file" accept="image/*" id="camera-input" capture="environment"
                     style="opacity: 0; position: absolute; z-index: -1;">
                 <label for="camera-input" class="drop-zone" id="drop-zone">
                     <div class="drop-zone-content">
@@ -30,8 +30,6 @@
                     </div>
                 </label>
             </section>
-
-
 
             <!-- 処理中 -->
             <div id="loading" class="hidden">

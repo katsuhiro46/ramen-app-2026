@@ -1,17 +1,20 @@
 {
   "version": 2,
-  "name": "ramen-app-final",
-  "regions": ["hnd1"],
-  "functions": {
-    "api/**/*.py": {
-      "memory": 3008,
-      "maxDuration": 60
-    }
-  },
-  "rewrites": [
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/api/app"
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb",
+        "memory": 1024,
+        "maxDuration": 60
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "api/index.py"
     }
   ],
   "env": {
