@@ -49,46 +49,37 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========================================
     async function resizeImage(file, maxSize = 1200) {
         return new Promise((resolve) => {
-            const img = new Image();
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
+            // blueimp-load-imageでEXIF対応のリサイズ
+            loadImage(
+                file,
+                (canvas) => {
+                    if (canvas.type === 'error') {
+                        console.warn('画像読み込みエラー、元ファイルを使用');
+                        resolve(file);
+                        return;
+                    }
 
-            img.onload = () => {
-                let { width, height } = img;
+                    // リサイズ不要の場合はそのまま返す
+                    if (canvas.width <= maxSize && canvas.height <= maxSize) {
+                        console.log(`リサイズ不要: ${canvas.width}x${canvas.height}`);
+                        resolve(file);
+                        return;
+                    }
 
-                // 長辺がmaxSize以下なら、リサイズ不要
-                if (width <= maxSize && height <= maxSize) {
-                    console.log(`リサイズ不要: ${width}x${height}`);
-                    resolve(file);
-                    return;
+                    // リサイズ済みの画像をBlobに変換
+                    canvas.toBlob((blob) => {
+                        const resizedFile = new File([blob], file.name, { type: 'image/jpeg' });
+                        console.log(`リサイズ完了: ${file.size} → ${resizedFile.size} bytes (${canvas.width}x${canvas.height})`);
+                        resolve(resizedFile);
+                    }, 'image/jpeg', 0.9);
+                },
+                {
+                    orientation: true,  // EXIF Orientationを自動処理
+                    canvas: true,
+                    maxWidth: maxSize,
+                    maxHeight: maxSize
                 }
-
-                // アスペクト比を維持してリサイズ
-                if (width > height) {
-                    height = Math.round((height * maxSize) / width);
-                    width = maxSize;
-                } else {
-                    width = Math.round((width * maxSize) / height);
-                    height = maxSize;
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                ctx.drawImage(img, 0, 0, width, height);
-
-                canvas.toBlob((blob) => {
-                    const resizedFile = new File([blob], file.name, { type: 'image/jpeg' });
-                    console.log(`リサイズ完了: ${file.size} → ${resizedFile.size} bytes (${width}x${height})`);
-                    resolve(resizedFile);
-                }, 'image/jpeg', 0.9);
-            };
-
-            img.onerror = () => {
-                console.warn('画像読み込みエラー、元ファイルを使用');
-                resolve(file);
-            };
-
-            img.src = URL.createObjectURL(file);
+            );
         });
     }
 
@@ -149,7 +140,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // JavaScriptでの .click() は不要
 
     fileInput.addEventListener('change', (e) => {
-        alert("写真を受け取りました！編集画面を開きます"); // 緊急デバッグ
         const file = e.target.files[0];
         if (file) handleUpload(file);
     });
@@ -176,22 +166,54 @@ document.addEventListener('DOMContentLoaded', () => {
     // Step 1: アップロード → クロップ編集画面
     // ========================================
     async function handleUpload(file) {
-        alert("handleUpload開始！ファイル名: " + file.name); // デバッグ
+        console.log('=== handleUpload開始 ===', file.name);
 
-        // 1. 撮影直後に生画像を即座に表示（0ms）
-        cleanupBlobUrl(); // 前回のBlobURLを解放
-        const rawImageUrl = URL.createObjectURL(file);
-        currentBlobUrl = rawImageUrl;
-        cropPreview.src = rawImageUrl;
+        // 前回のBlobURLを解放
+        cleanupBlobUrl();
 
-        // 2. 即座に編集画面に遷移（待ち時間ゼロ）
-        uploadSection.classList.add('hidden');
-        cropSection.classList.remove('hidden');
+        // EXIF情報を解析して正しい向きに回転させた画像を表示
+        loadImage(
+            file,
+            (canvas) => {
+                if (canvas.type === 'error') {
+                    console.error('画像読み込みエラー:', canvas);
+                    showToast('⚠️ 画像の読み込みに失敗しました', 5000);
+                    return;
+                }
 
-        alert("編集画面を表示しました！"); // デバッグ
+                console.log('=== EXIF処理完了 ===', {
+                    width: canvas.width,
+                    height: canvas.height
+                });
 
-        // 3. バックグラウンドで処理開始
-        processInBackground(file);
+                // Canvasに正しい向きで描画された画像を取得
+                canvas.toBlob((blob) => {
+                    const correctedImageUrl = URL.createObjectURL(blob);
+                    currentBlobUrl = correctedImageUrl;
+                    cropPreview.src = correctedImageUrl;
+
+                    console.log('=== 切り抜き画面を表示 ===');
+
+                    // 即座に切り抜き編集画面に遷移
+                    uploadSection.classList.add('hidden');
+                    cropSection.classList.remove('hidden');
+
+                    console.log('=== cropSection表示状態 ===', {
+                        hidden: cropSection.classList.contains('hidden'),
+                        display: window.getComputedStyle(cropSection).display
+                    });
+
+                    // バックグラウンドで処理開始
+                    processInBackground(file);
+                }, 'image/jpeg', 0.95);
+            },
+            {
+                orientation: true,  // EXIF Orientationを自動処理
+                canvas: true,       // Canvas要素を返す
+                maxWidth: 1920,     // 最大幅（高速表示のため）
+                maxHeight: 1920     // 最大高さ
+            }
+        );
     }
 
     // ========================================
