@@ -34,6 +34,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let croppedImageUrl = null;
     let detectedShopName = null;
 
+    // バックグラウンド処理用の変数
+    let currentBlobUrl = null;
+    let currentProcessId = 0;
+    let serverProcessingState = {
+        isProcessing: false,
+        croppedImageUrl: null,
+        detectedShopName: null,
+        error: null
+    };
+
     // ========================================
     // 画像リサイズ（Vercel 10秒制限対策）
     // ========================================
@@ -83,12 +93,63 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ========================================
+    // UI部品（トースト・プログレスバー）
+    // ========================================
+    function showBackgroundProgress(message) {
+        const existing = document.getElementById('background-progress');
+        if (existing) existing.remove();
+
+        const progressBar = document.createElement('div');
+        progressBar.id = 'background-progress';
+        progressBar.className = 'background-progress';
+        progressBar.innerHTML = `
+            <div class="progress-content">
+                <span class="spinner-small"></span>
+                <span>${message}</span>
+            </div>
+        `;
+        document.body.appendChild(progressBar);
+    }
+
+    function hideBackgroundProgress() {
+        const progressBar = document.getElementById('background-progress');
+        if (progressBar) {
+            progressBar.style.opacity = '0';
+            setTimeout(() => progressBar.remove(), 300);
+        }
+    }
+
+    function showToast(message, duration = 3000) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('show');
+        }, 10);
+
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
+    function cleanupBlobUrl() {
+        if (currentBlobUrl) {
+            URL.revokeObjectURL(currentBlobUrl);
+            currentBlobUrl = null;
+        }
+    }
+
+    // ========================================
     // 写真アップロード
     // ========================================
     // label の for 属性により、タップで自動的に input が発火
     // JavaScriptでの .click() は不要
 
     fileInput.addEventListener('change', (e) => {
+        alert("写真を受け取りました！編集画面を開きます"); // 緊急デバッグ
         const file = e.target.files[0];
         if (file) handleUpload(file);
     });
@@ -115,19 +176,49 @@ document.addEventListener('DOMContentLoaded', () => {
     // Step 1: アップロード → クロップ編集画面
     // ========================================
     async function handleUpload(file) {
+        alert("handleUpload開始！ファイル名: " + file.name); // デバッグ
+
+        // 1. 撮影直後に生画像を即座に表示（0ms）
+        cleanupBlobUrl(); // 前回のBlobURLを解放
+        const rawImageUrl = URL.createObjectURL(file);
+        currentBlobUrl = rawImageUrl;
+        cropPreview.src = rawImageUrl;
+
+        // 2. 即座に編集画面に遷移（待ち時間ゼロ）
         uploadSection.classList.add('hidden');
-        loading.classList.remove('hidden');
-        stepStatus.textContent = '📐 画像をリサイズ中...';
+        cropSection.classList.remove('hidden');
 
-        // Vercel 10秒制限対策: ブラウザ側でリサイズ
-        const resizedFile = await resizeImage(file, 1200);
+        alert("編集画面を表示しました！"); // デバッグ
 
-        stepStatus.textContent = '✂️ 画像をクロップ中...';
+        // 3. バックグラウンドで処理開始
+        processInBackground(file);
+    }
 
-        const formData = new FormData();
-        formData.append('file', resizedFile);
+    // ========================================
+    // バックグラウンド処理
+    // ========================================
+    async function processInBackground(file) {
+        const processId = ++currentProcessId;
+
+        // 処理状態のリセット
+        serverProcessingState = {
+            isProcessing: true,
+            croppedImageUrl: null,
+            detectedShopName: null,
+            error: null
+        };
+
+        // 控えめなプログレス表示
+        showBackgroundProgress('サーバー処理中...（この画面で編集可能）');
 
         try {
+            // リサイズ処理
+            const resizedFile = await resizeImage(file, 1200);
+
+            // /analyze API呼び出し
+            const formData = new FormData();
+            formData.append('file', resizedFile);
+
             const response = await fetch('/analyze', {
                 method: 'POST',
                 body: formData
@@ -136,41 +227,118 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             console.log('=== API Response ===', data);
 
+            // 古い処理結果は破棄（最新のみ反映）
+            if (processId !== currentProcessId) {
+                console.log('Stale response, ignoring');
+                return;
+            }
+
             if (data.error) {
                 throw new Error(data.error);
             }
 
+            // 処理完了状態の更新
+            serverProcessingState.isProcessing = false;
+            serverProcessingState.croppedImageUrl = data.image_url;
+            serverProcessingState.detectedShopName = data.shop_name;
             currentFilename = data.filename;
             croppedImageUrl = data.image_url;
             detectedShopName = data.shop_name;
 
-            // クロップ済み画像をプレビュー
-            cropPreview.src = croppedImageUrl;
+            // クロップ済み画像が取得できたら自動更新
+            if (data.image_url) {
+                updateCropPreview(data.image_url);
+            }
 
-            loading.classList.add('hidden');
-            cropSection.classList.remove('hidden');
+            // 店名が検出できたら通知
+            if (data.shop_name && !data.shop_name.includes('判定不能')) {
+                showToast('🚀 店名を自動検出しました');
+            }
+
+            hideBackgroundProgress();
 
         } catch (err) {
-            loading.classList.add('hidden');
-            uploadSection.classList.remove('hidden');
-            alert('エラー: ' + err.message);
+            // 古い処理結果は破棄
+            if (processId !== currentProcessId) {
+                return;
+            }
+
+            serverProcessingState.isProcessing = false;
+            serverProcessingState.error = err.message;
+            hideBackgroundProgress();
+            showToast('⚠️ サーバー処理失敗（元画像を使用）', 5000);
+            console.error('Background processing error:', err);
         }
+    }
+
+    // ========================================
+    // プレビュー画像の動的更新
+    // ========================================
+    function updateCropPreview(croppedUrl) {
+        const newImg = new Image();
+
+        newImg.onload = () => {
+            // スムーズなトランジション
+            cropPreview.style.opacity = '0.5';
+            setTimeout(() => {
+                cropPreview.src = croppedUrl;
+                cropPreview.style.opacity = '1';
+                showToast('✨ クロップ済み画像に更新しました');
+            }, 200);
+        };
+
+        newImg.onerror = () => {
+            console.warn('Cropped image load failed, using raw image');
+        };
+
+        newImg.src = croppedUrl;
+    }
+
+    // ========================================
+    // リアルタイム店名更新
+    // ========================================
+    function watchForShopNameUpdate() {
+        const checkInterval = setInterval(() => {
+            if (!serverProcessingState.isProcessing) {
+                clearInterval(checkInterval);
+
+                if (serverProcessingState.detectedShopName &&
+                    !serverProcessingState.detectedShopName.includes('判定不能') &&
+                    !serverProcessingState.detectedShopName.includes('特定できません')) {
+                    // 店名が空の場合のみ自動入力（ユーザーの手動入力を尊重）
+                    if (!shopNameInput.value.trim()) {
+                        shopNameInput.value = serverProcessingState.detectedShopName;
+                        showToast('🚀 店名を自動検出しました');
+                        editHint.textContent = '✅ GPS検出完了';
+                        editHint.style.color = '#0f0';
+                    }
+                }
+            }
+        }, 500);
+
+        // 最大10秒でタイムアウト
+        setTimeout(() => clearInterval(checkInterval), 10000);
     }
 
     // ========================================
     // Step 2: クロップ完了 → 店名入力画面へ
     // ========================================
     cropDoneBtn.addEventListener('click', () => {
-        // 加工済み画像を店名入力画面に表示
-        previewImage.src = croppedImageUrl;
+        // サーバー処理完了を待たずに進める
+        const imageUrl = serverProcessingState.croppedImageUrl || cropPreview.src;
+        previewImage.src = imageUrl;
 
-        // 店名を設定（GPSから検出できた場合は自動入力）
-        if (detectedShopName &&
-            !detectedShopName.includes('判定不能') &&
-            !detectedShopName.includes('特定できません')) {
-            shopNameInput.value = detectedShopName;
+        // 店名の自動入力（処理状態に応じて）
+        if (serverProcessingState.detectedShopName &&
+            !serverProcessingState.detectedShopName.includes('判定不能') &&
+            !serverProcessingState.detectedShopName.includes('特定できません')) {
+            shopNameInput.value = serverProcessingState.detectedShopName;
             editHint.textContent = '🚀 GPSから店名を自動検出しました';
             editHint.style.color = '#0f0';
+        } else if (serverProcessingState.isProcessing) {
+            shopNameInput.value = '';
+            editHint.textContent = '⏳ サーバー処理中... 手動入力も可能です';
+            editHint.style.color = '#ff9800';
         } else {
             shopNameInput.value = '';
             editHint.textContent = '💡 下のリストから店名をタップで反映できます';
@@ -179,6 +347,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         cropSection.classList.add('hidden');
         editSection.classList.remove('hidden');
+
+        // バックグラウンド処理完了後に店名を自動更新
+        if (serverProcessingState.isProcessing) {
+            watchForShopNameUpdate();
+        }
     });
 
     cropCancelBtn.addEventListener('click', resetApp);
@@ -243,6 +416,9 @@ document.addEventListener('DOMContentLoaded', () => {
     resetBtn.addEventListener('click', resetApp);
 
     function resetApp() {
+        // メモリリーク対策
+        cleanupBlobUrl();
+
         uploadSection.classList.remove('hidden');
         loading.classList.add('hidden');
         cropSection.classList.add('hidden');
@@ -252,6 +428,17 @@ document.addEventListener('DOMContentLoaded', () => {
         shopNameInput.value = '';
         currentFilename = null;
         detectedShopName = null;
+
+        // バックグラウンド処理の状態をリセット
+        serverProcessingState = {
+            isProcessing: false,
+            croppedImageUrl: null,
+            detectedShopName: null,
+            error: null
+        };
+
+        // バックグラウンドプログレスを非表示
+        hideBackgroundProgress();
     }
 
     // ========================================
