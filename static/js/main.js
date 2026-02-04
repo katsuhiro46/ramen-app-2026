@@ -171,49 +171,25 @@ document.addEventListener('DOMContentLoaded', () => {
         // 前回のBlobURLを解放
         cleanupBlobUrl();
 
-        // EXIF情報を解析して正しい向きに回転させた画像を表示
-        loadImage(
-            file,
-            (canvas) => {
-                if (canvas.type === 'error') {
-                    console.error('画像読み込みエラー:', canvas);
-                    showToast('⚠️ 画像の読み込みに失敗しました', 5000);
-                    return;
-                }
+        // 元のファイルを直接使用（EXIFメタデータを保持）
+        // Canvas変換を行わないことで、EXIF情報が保持され回転バグを防ぐ
+        const correctedImageUrl = URL.createObjectURL(file);
+        currentBlobUrl = correctedImageUrl;
+        cropPreview.src = correctedImageUrl;
 
-                console.log('=== EXIF処理完了 ===', {
-                    width: canvas.width,
-                    height: canvas.height
-                });
+        console.log('=== 切り抜き画面を表示 ===');
 
-                // Canvasに正しい向きで描画された画像を取得
-                canvas.toBlob((blob) => {
-                    const correctedImageUrl = URL.createObjectURL(blob);
-                    currentBlobUrl = correctedImageUrl;
-                    cropPreview.src = correctedImageUrl;
+        // 即座に切り抜き編集画面に遷移
+        uploadSection.classList.add('hidden');
+        cropSection.classList.remove('hidden');
 
-                    console.log('=== 切り抜き画面を表示 ===');
+        console.log('=== cropSection表示状態 ===', {
+            hidden: cropSection.classList.contains('hidden'),
+            display: window.getComputedStyle(cropSection).display
+        });
 
-                    // 即座に切り抜き編集画面に遷移
-                    uploadSection.classList.add('hidden');
-                    cropSection.classList.remove('hidden');
-
-                    console.log('=== cropSection表示状態 ===', {
-                        hidden: cropSection.classList.contains('hidden'),
-                        display: window.getComputedStyle(cropSection).display
-                    });
-
-                    // バックグラウンドで処理開始
-                    processInBackground(file);
-                }, 'image/jpeg', 0.95);
-            },
-            {
-                orientation: true,  // EXIF Orientationを自動処理
-                canvas: true,       // Canvas要素を返す
-                maxWidth: 1920,     // 最大幅（高速表示のため）
-                maxHeight: 1920     // 最大高さ
-            }
-        );
+        // バックグラウンドで処理開始
+        processInBackground(file);
     }
 
     // ========================================
