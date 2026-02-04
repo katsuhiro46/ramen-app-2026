@@ -1001,6 +1001,56 @@ input[type="text"].dragover {
     max-height: 70vh !important;
 }
 
+/* ========================================
+   切り抜き座標モニター（デカデカ表示）
+   ======================================== */
+.crop-coords {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #111;
+    border: 2px solid #444;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+#coord-values {
+    color: #0ff;
+    font-size: 1rem;
+    letter-spacing: 1px;
+}
+
+.coord-error {
+    color: #ff4444;
+    font-weight: bold;
+    animation: blink-error 1s infinite;
+}
+
+.coord-ok {
+    color: #00ff00;
+    font-weight: bold;
+}
+
+@keyframes blink-error {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* ========================================
+   ロック状態のボタン
+   ======================================== */
+.crop-actions button.locked,
+.crop-actions button:disabled {
+    background: #333 !important;
+    color: #666 !important;
+    cursor: not-allowed !important;
+    border: 2px dashed #555 !important;
+}
+
 /* モバイル対応 */
 @media (max-width: 600px) {
     .background-progress {
@@ -1025,5 +1075,14 @@ input[type="text"].dragover {
     .cropper-point {
         width: 14px !important;
         height: 14px !important;
+    }
+
+    .crop-coords {
+        font-size: 0.9rem;
+        padding: 8px 12px;
+    }
+
+    #coord-values {
+        font-size: 0.85rem;
     }
 }

@@ -42,13 +42,20 @@
 
             <!-- Step 1: 切り抜き編集画面 -->
             <section id="crop-section" class="hidden">
-                <h2>✂️ どんぶりギリギリで切り抜け</h2>
-                <p class="crop-instruction">枠をどんぶりに合わせてピンチ・ドラッグで調整</p>
-                <div class="cropper-wrapper">
+                <h2>✂️ 指でどんぶりギリギリに合わせろ</h2>
+                <p class="crop-instruction">枠をドラッグ・ピンチで調整 → 納得したら「決定」</p>
+
+                <!-- 切り抜き座標モニター（デカデカ表示） -->
+                <div id="crop-coords" class="crop-coords">
+                    <span id="coord-status" class="coord-error">⛔ 枠を動かせ</span>
+                    <span id="coord-values">X:0 Y:0 W:0 H:0</span>
+                </div>
+
+                <div class="cropper-wrapper" id="cropper-wrapper">
                     <img id="crop-preview" src="" alt="Crop Preview">
                 </div>
                 <div class="crop-actions">
-                    <button id="crop-done-btn" class="primary">✅ この切り抜きで決定 → 店名入力へ</button>
+                    <button id="crop-done-btn" class="primary" disabled>🔒 まず枠を動かせ</button>
                     <button id="crop-cancel-btn" class="secondary">キャンセル</button>
                 </div>
             </section>
