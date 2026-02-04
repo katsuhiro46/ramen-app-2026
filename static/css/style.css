@@ -931,6 +931,74 @@ input[type="text"].dragover {
    ======================================== */
 #crop-preview {
     transition: opacity 0.3s ease;
+    /* Cropper.jsが制御するため最大幅を設定 */
+    max-width: 100%;
+    display: block;
+}
+
+/* ========================================
+   Cropper.js カスタムスタイル
+   どんぶりギリギリ切り抜き用
+   ======================================== */
+.cropper-wrapper {
+    width: 100%;
+    max-height: 70vh;
+    overflow: hidden;
+    border-radius: var(--border-radius);
+    background: #000;
+    position: relative;
+    margin: 10px 0;
+}
+
+.crop-instruction {
+    color: #aaa;
+    font-size: 0.85rem;
+    margin: 0 0 8px 0;
+    text-align: center;
+}
+
+/* 丸型切り抜きガイド（どんぶり形状） */
+.cropper-round .cropper-view-box {
+    border-radius: 50%;
+    outline: 0;
+    box-shadow: 0 0 0 1px rgba(230, 0, 18, 0.8);
+}
+
+.cropper-round .cropper-face {
+    border-radius: 50%;
+}
+
+/* 切り抜き枠の外側を暗くする */
+.cropper-modal {
+    background-color: #000;
+    opacity: 0.7;
+}
+
+/* 切り抜き枠のボーダー */
+.cropper-view-box {
+    outline: 2px solid rgba(230, 0, 18, 0.8);
+}
+
+/* ドラッグポイントの色 */
+.cropper-point {
+    background-color: var(--accent-color);
+    width: 10px !important;
+    height: 10px !important;
+    opacity: 1;
+}
+
+/* ガイドラインの色 */
+.cropper-dashed {
+    border-color: rgba(230, 0, 18, 0.4);
+}
+
+.cropper-line {
+    background-color: rgba(230, 0, 18, 0.6);
+}
+
+/* Cropper コンテナの高さ制限 */
+.cropper-container {
+    max-height: 70vh !important;
 }
 
 /* モバイル対応 */
@@ -944,5 +1012,18 @@ input[type="text"].dragover {
     .toast {
         font-size: 12px;
         padding: 10px 20px;
+    }
+
+    .cropper-wrapper {
+        max-height: 60vh;
+    }
+
+    .cropper-container {
+        max-height: 60vh !important;
+    }
+
+    .cropper-point {
+        width: 14px !important;
+        height: 14px !important;
     }
 }

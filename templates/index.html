@@ -8,6 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <title>俺専用ラーメンアプリ</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 
@@ -39,15 +40,15 @@
                 </div>
             </div>
 
-            <!-- Step 1: クロップ編集画面 -->
+            <!-- Step 1: 切り抜き編集画面 -->
             <section id="crop-section" class="hidden">
-                <h2>✂️ 切り抜き完了</h2>
-                <div class="preview-container">
-                    <img id="crop-preview" src="" alt="Cropped Preview">
+                <h2>✂️ どんぶりギリギリで切り抜け</h2>
+                <p class="crop-instruction">枠をどんぶりに合わせてピンチ・ドラッグで調整</p>
+                <div class="cropper-wrapper">
+                    <img id="crop-preview" src="" alt="Crop Preview">
                 </div>
                 <div class="crop-actions">
-                    <p class="crop-info">ラーメン部分を切り抜きました</p>
-                    <button id="crop-done-btn" class="primary">✅ 加工完了 → 店名入力へ</button>
+                    <button id="crop-done-btn" class="primary">✅ この切り抜きで決定 → 店名入力へ</button>
                     <button id="crop-cancel-btn" class="secondary">キャンセル</button>
                 </div>
             </section>
@@ -105,6 +106,8 @@
     </div>
     <!-- EXIF対応画像処理ライブラリ -->
     <script src="https://cdn.jsdelivr.net/npm/blueimp-load-image@5.16.0/js/load-image.all.min.js"></script>
+    <!-- Cropper.js - インタラクティブ切り抜き -->
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
     <script src="/static/js/main.js"></script>
 </body>
 

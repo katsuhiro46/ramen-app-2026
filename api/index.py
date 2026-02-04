@@ -435,8 +435,8 @@ def get_news():
 @app.route('/api/simple-crop', methods=['POST'])
 def simple_crop():
     """
-    超シンプルクロップエンドポイント
-    フロントで調整済みの画像をそのまま保存するだけ（AI計算ゼロ）
+    フロントエンド（Cropper.js）で切り抜き済みの画像を保存
+    /process エンドポイントでラベル追加するために OUTPUT_FOLDER に保存
     """
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
@@ -446,26 +446,31 @@ def simple_crop():
         return jsonify({'error': 'No selected file'}), 400
 
     try:
-        # ファイル保存
-        filename = secure_filename(file.filename)
-        unique_filename = f"{int(time.time())}_{filename}"
-        filepath = os.path.join(app.config['OUTPUT_FOLDER'], unique_filename)
+        # ファイル名を生成（/process で使えるように cropped_ プレフィックスなし）
+        unique_filename = f"{int(time.time())}_cropped.jpg"
+
+        # UPLOAD_FOLDER にも保存（/process が元画像として参照するため）
+        upload_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        output_path = os.path.join(app.config['OUTPUT_FOLDER'], f"cropped_{unique_filename}")
 
         # バイナリで保存
         file_data = file.read()
-        with open(filepath, 'wb') as f:
+        with open(upload_path, 'wb') as f:
+            f.write(file_data)
+        with open(output_path, 'wb') as f:
             f.write(file_data)
 
-        print(f"✅ Simple crop saved: {filepath} ({len(file_data)} bytes)")
+        print(f"✅ フロントエンド切り抜き画像を保存: {upload_path} ({len(file_data)} bytes)")
+        print(f"✅ クロップ済みコピー: {output_path}")
 
         return jsonify({
             'success': True,
             'filename': unique_filename,
-            'image_url': f'/results/{unique_filename}'
+            'image_url': f'/results/cropped_{unique_filename}'
         })
 
     except Exception as e:
-        print(f"Simple crop error: {e}")
+        print(f"❌ 切り抜き画像保存エラー: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500

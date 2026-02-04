@@ -1,9 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('========================================');
+    console.log('🍜 ラーメンアプリ 起動');
+    console.log('========================================');
+
     // ========================================
     // 要素の取得
     // ========================================
     const dropZone = document.getElementById('drop-zone');
-    const fileInput = document.getElementById('camera-input'); // ID変更: camera-input
+    const fileInput = document.getElementById('camera-input');
     const uploadSection = document.getElementById('upload-section');
     const loading = document.getElementById('loading');
     const stepStatus = document.getElementById('step-status');
@@ -34,6 +38,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let croppedImageUrl = null;
     let detectedShopName = null;
 
+    // Cropper.js インスタンス
+    let cropperInstance = null;
+
+    // 画面状態の管理（素通りバグ防止）
+    let appState = 'idle'; // idle | cropping | editing | saving | done
+
     // バックグラウンド処理用の変数
     let currentBlobUrl = null;
     let currentProcessId = 0;
@@ -45,36 +55,63 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ========================================
-    // 画像リサイズ（Vercel 10秒制限対策）
+    // EXIF回転を物理的に適用して正しい向きの画像を返す
+    // Pixel 6a等で横向き撮影された画像を確実に補正する
     // ========================================
-    async function resizeImage(file, maxSize = 1200) {
+    function correctImageOrientation(file) {
         return new Promise((resolve) => {
-            // blueimp-load-imageでEXIF対応のリサイズ
+            console.log('📐 EXIF回転補正を開始:', file.name, `(${file.size} bytes)`);
+
             loadImage(
                 file,
                 (canvas) => {
                     if (canvas.type === 'error') {
-                        console.warn('画像読み込みエラー、元ファイルを使用');
+                        console.warn('⚠️ EXIF処理失敗、元ファイルを使用');
+                        resolve(URL.createObjectURL(file));
+                        return;
+                    }
+
+                    console.log(`📐 EXIF補正後のサイズ: ${canvas.width}x${canvas.height}`);
+
+                    // Canvasから Blob URL を生成（物理的に回転済み）
+                    canvas.toBlob((blob) => {
+                        const correctedUrl = URL.createObjectURL(blob);
+                        console.log('✅ EXIF回転補正完了 → 物理的に正しい向きの画像を生成');
+                        resolve(correctedUrl);
+                    }, 'image/jpeg', 0.92);
+                },
+                {
+                    orientation: true,  // EXIF Orientationを物理的に適用
+                    canvas: true,
+                    maxWidth: 1600,
+                    maxHeight: 1600
+                }
+            );
+        });
+    }
+
+    // ========================================
+    // サーバー送信用リサイズ（EXIF適用済み）
+    // ========================================
+    async function resizeImage(file, maxSize = 1200) {
+        return new Promise((resolve) => {
+            loadImage(
+                file,
+                (canvas) => {
+                    if (canvas.type === 'error') {
+                        console.warn('⚠️ リサイズ失敗、元ファイルを使用');
                         resolve(file);
                         return;
                     }
 
-                    // リサイズ不要の場合はそのまま返す
-                    if (canvas.width <= maxSize && canvas.height <= maxSize) {
-                        console.log(`リサイズ不要: ${canvas.width}x${canvas.height}`);
-                        resolve(file);
-                        return;
-                    }
-
-                    // リサイズ済みの画像をBlobに変換
                     canvas.toBlob((blob) => {
                         const resizedFile = new File([blob], file.name, { type: 'image/jpeg' });
-                        console.log(`リサイズ完了: ${file.size} → ${resizedFile.size} bytes (${canvas.width}x${canvas.height})`);
+                        console.log(`📦 サーバー送信用リサイズ: ${file.size} → ${resizedFile.size} bytes (${canvas.width}x${canvas.height})`);
                         resolve(resizedFile);
                     }, 'image/jpeg', 0.9);
                 },
                 {
-                    orientation: true,  // EXIF Orientationを自動処理
+                    orientation: true,
                     canvas: true,
                     maxWidth: maxSize,
                     maxHeight: maxSize
@@ -133,12 +170,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function destroyCropper() {
+        if (cropperInstance) {
+            cropperInstance.destroy();
+            cropperInstance = null;
+            console.log('🔧 Cropperインスタンスを破棄');
+        }
+    }
+
     // ========================================
     // 写真アップロード
     // ========================================
-    // label の for 属性により、タップで自動的に input が発火
-    // JavaScriptでの .click() は不要
-
     fileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) handleUpload(file);
@@ -163,40 +205,104 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ========================================
-    // Step 1: アップロード → クロップ編集画面
+    // Step 1: アップロード → 切り抜き編集画面
     // ========================================
     async function handleUpload(file) {
-        console.log('=== handleUpload開始 ===', file.name);
+        console.log('========================================');
+        console.log('📸 handleUpload開始:', file.name, `(${file.size} bytes, ${file.type})`);
+        console.log('========================================');
 
-        // 前回のBlobURLを解放
+        // 状態を「切り抜き中」に設定（素通り防止）
+        appState = 'cropping';
+        console.log('🔒 アプリ状態 → cropping（切り抜き画面をロック）');
+
+        // 前回のリソースを解放
         cleanupBlobUrl();
+        destroyCropper();
 
-        // 元のファイルを直接使用（EXIFメタデータを保持）
-        // Canvas変換を行わないことで、EXIF情報が保持され回転バグを防ぐ
-        const correctedImageUrl = URL.createObjectURL(file);
+        // EXIF回転を物理的に適用してから表示
+        console.log('📐 Pixel 6a対応: EXIF回転を物理的に適用中...');
+        const correctedImageUrl = await correctImageOrientation(file);
         currentBlobUrl = correctedImageUrl;
+
+        // 切り抜きプレビューに設定
         cropPreview.src = correctedImageUrl;
 
-        console.log('=== 切り抜き画面を表示 ===');
+        console.log('🖼️ 切り抜き画面を表示します');
+        console.log('⚠️ ユーザーが「決定」を押すまで、この画面は絶対にスキップしません');
 
         // 即座に切り抜き編集画面に遷移
         uploadSection.classList.add('hidden');
         cropSection.classList.remove('hidden');
 
-        console.log('=== cropSection表示状態 ===', {
-            hidden: cropSection.classList.contains('hidden'),
-            display: window.getComputedStyle(cropSection).display
-        });
+        // Cropper.js を画像読み込み後に初期化
+        cropPreview.onload = () => {
+            console.log('🖼️ 画像読み込み完了 → Cropper.js を初期化');
+            initCropper();
+        };
 
-        // バックグラウンドで処理開始
+        console.log('📡 バックグラウンドでサーバー処理を開始（店名検出等）');
+        // バックグラウンドで処理開始（切り抜き画面はそのまま維持）
         processInBackground(file);
     }
 
     // ========================================
-    // バックグラウンド処理
+    // Cropper.js 初期化 - どんぶりギリギリ切り抜き
+    // ========================================
+    function initCropper() {
+        destroyCropper();
+
+        console.log('✂️ Cropper.js 初期化: 丸型ガイド付き自由切り抜き');
+
+        cropperInstance = new Cropper(cropPreview, {
+            // 丸型に見える1:1比率（どんぶり形状に最適）
+            aspectRatio: 1,
+            // ドラッグで切り抜き枠を移動
+            viewMode: 1,
+            // 画像全体を表示
+            dragMode: 'move',
+            // レスポンシブ
+            responsive: true,
+            // 切り抜きガイドライン表示
+            guides: true,
+            // 中心マーク表示
+            center: true,
+            // 背景グリッド
+            background: true,
+            // 自動切り抜き（初期枠を自動配置）
+            autoCrop: true,
+            // 初期切り抜き枠を画像の80%に設定（どんぶりギリギリ）
+            autoCropArea: 0.85,
+            // モバイルタッチ対応
+            movable: true,
+            rotatable: false,
+            scalable: true,
+            zoomable: true,
+            zoomOnTouch: true,
+            zoomOnWheel: true,
+            // 切り抜き枠のサイズ変更可能
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            // 丸型表示のためのクラス
+            ready: function () {
+                console.log('✅ Cropper.js 準備完了 → 切り抜き操作可能');
+                console.log('👆 ピンチで拡大縮小、ドラッグで位置調整');
+
+                // 丸型ビューガイドを追加
+                const cropBox = document.querySelector('.cropper-crop-box');
+                if (cropBox) {
+                    cropBox.classList.add('cropper-round');
+                }
+            }
+        });
+    }
+
+    // ========================================
+    // バックグラウンド処理（店名検出・サーバー保存）
     // ========================================
     async function processInBackground(file) {
         const processId = ++currentProcessId;
+        console.log(`📡 バックグラウンド処理開始 (ID: ${processId})`);
 
         // 処理状態のリセット
         serverProcessingState = {
@@ -206,28 +312,26 @@ document.addEventListener('DOMContentLoaded', () => {
             error: null
         };
 
-        // 控えめなプログレス表示
-        showBackgroundProgress('サーバー処理中...（この画面で編集可能）');
+        showBackgroundProgress('サーバー処理中...（切り抜き操作は可能です）');
 
         try {
-            // リサイズ処理
             const resizedFile = await resizeImage(file, 1200);
 
-            // /analyze API呼び出し
             const formData = new FormData();
             formData.append('file', resizedFile);
 
+            console.log('📡 /analyze API 呼び出し中...');
             const response = await fetch('/analyze', {
                 method: 'POST',
                 body: formData
             });
 
             const data = await response.json();
-            console.log('=== API Response ===', data);
+            console.log('📡 API レスポンス受信:', JSON.stringify(data, null, 2));
 
             // 古い処理結果は破棄（最新のみ反映）
             if (processId !== currentProcessId) {
-                console.log('Stale response, ignoring');
+                console.log('⏭️ 古い処理結果を破棄（新しいアップロードが開始済み）');
                 return;
             }
 
@@ -243,12 +347,10 @@ document.addEventListener('DOMContentLoaded', () => {
             croppedImageUrl = data.image_url;
             detectedShopName = data.shop_name;
 
-            // クロップ済み画像が取得できたら自動更新
-            if (data.image_url) {
-                updateCropPreview(data.image_url);
-            }
+            console.log('✅ サーバー処理完了');
+            console.log(`  店名: ${data.shop_name}`);
+            console.log(`  検出方法: ${data.detection_method}`);
 
-            // 店名が検出できたら通知
             if (data.shop_name && !data.shop_name.includes('判定不能')) {
                 showToast('🚀 店名を自動検出しました');
             }
@@ -256,40 +358,14 @@ document.addEventListener('DOMContentLoaded', () => {
             hideBackgroundProgress();
 
         } catch (err) {
-            // 古い処理結果は破棄
-            if (processId !== currentProcessId) {
-                return;
-            }
+            if (processId !== currentProcessId) return;
 
             serverProcessingState.isProcessing = false;
             serverProcessingState.error = err.message;
             hideBackgroundProgress();
             showToast('⚠️ サーバー処理失敗（元画像を使用）', 5000);
-            console.error('Background processing error:', err);
+            console.error('❌ バックグラウンド処理エラー:', err);
         }
-    }
-
-    // ========================================
-    // プレビュー画像の動的更新
-    // ========================================
-    function updateCropPreview(croppedUrl) {
-        const newImg = new Image();
-
-        newImg.onload = () => {
-            // スムーズなトランジション
-            cropPreview.style.opacity = '0.5';
-            setTimeout(() => {
-                cropPreview.src = croppedUrl;
-                cropPreview.style.opacity = '1';
-                showToast('✨ クロップ済み画像に更新しました');
-            }, 200);
-        };
-
-        newImg.onerror = () => {
-            console.warn('Cropped image load failed, using raw image');
-        };
-
-        newImg.src = croppedUrl;
     }
 
     // ========================================
@@ -303,7 +379,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (serverProcessingState.detectedShopName &&
                     !serverProcessingState.detectedShopName.includes('判定不能') &&
                     !serverProcessingState.detectedShopName.includes('特定できません')) {
-                    // 店名が空の場合のみ自動入力（ユーザーの手動入力を尊重）
                     if (!shopNameInput.value.trim()) {
                         shopNameInput.value = serverProcessingState.detectedShopName;
                         showToast('🚀 店名を自動検出しました');
@@ -314,19 +389,53 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 500);
 
-        // 最大10秒でタイムアウト
         setTimeout(() => clearInterval(checkInterval), 10000);
     }
 
     // ========================================
-    // Step 2: クロップ完了 → 店名入力画面へ
+    // Step 2: 切り抜き決定 → 店名入力画面へ
     // ========================================
     cropDoneBtn.addEventListener('click', () => {
-        // サーバー処理完了を待たずに進める
-        const imageUrl = serverProcessingState.croppedImageUrl || cropPreview.src;
-        previewImage.src = imageUrl;
+        console.log('========================================');
+        console.log('✅ ユーザーが切り抜きを決定しました');
+        console.log('========================================');
 
-        // 店名の自動入力（処理状態に応じて）
+        if (appState !== 'cropping') {
+            console.warn('⚠️ 状態不正: 現在の状態は', appState, '（cropping以外では操作不可）');
+            return;
+        }
+
+        // Cropper.jsから切り抜き画像を取得
+        let croppedDataUrl = null;
+        if (cropperInstance) {
+            const croppedCanvas = cropperInstance.getCroppedCanvas({
+                maxWidth: 1200,
+                maxHeight: 1200,
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high'
+            });
+
+            if (croppedCanvas) {
+                croppedDataUrl = croppedCanvas.toDataURL('image/jpeg', 0.92);
+                console.log(`✂️ 切り抜き完了: ${croppedCanvas.width}x${croppedCanvas.height}`);
+            }
+        }
+
+        // 切り抜き画像をプレビューに設定
+        if (croppedDataUrl) {
+            previewImage.src = croppedDataUrl;
+            console.log('🖼️ 切り抜き済み画像をプレビューに設定');
+
+            // 切り抜き画像をサーバーに送信（バックグラウンド）
+            sendCroppedImage(croppedDataUrl);
+        } else {
+            // Cropper取得失敗時はサーバーの画像を使用
+            const fallbackUrl = serverProcessingState.croppedImageUrl || cropPreview.src;
+            previewImage.src = fallbackUrl;
+            console.log('🖼️ フォールバック: サーバー画像を使用');
+        }
+
+        // 店名の自動入力
         if (serverProcessingState.detectedShopName &&
             !serverProcessingState.detectedShopName.includes('判定不能') &&
             !serverProcessingState.detectedShopName.includes('特定できません')) {
@@ -343,6 +452,13 @@ document.addEventListener('DOMContentLoaded', () => {
             editHint.style.color = '#888';
         }
 
+        // Cropperを破棄してから画面遷移
+        destroyCropper();
+
+        // 画面遷移
+        appState = 'editing';
+        console.log('🔒 アプリ状態 → editing（店名入力画面）');
+
         cropSection.classList.add('hidden');
         editSection.classList.remove('hidden');
 
@@ -352,12 +468,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    cropCancelBtn.addEventListener('click', resetApp);
+    // ========================================
+    // 切り抜き画像をサーバーに送信
+    // ========================================
+    async function sendCroppedImage(dataUrl) {
+        console.log('📤 切り抜き画像をサーバーに送信中...');
 
-    // 戻るボタン（店名入力 → クロップ編集）
+        try {
+            // DataURLをBlobに変換
+            const response = await fetch(dataUrl);
+            const blob = await response.blob();
+
+            const formData = new FormData();
+            formData.append('file', new File([blob], 'cropped.jpg', { type: 'image/jpeg' }));
+
+            const result = await fetch('/api/simple-crop', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await result.json();
+            console.log('✅ 切り抜き画像をサーバーに保存:', data);
+
+            if (data.success && data.filename) {
+                currentFilename = data.filename;
+                croppedImageUrl = data.image_url;
+            }
+        } catch (err) {
+            console.error('❌ 切り抜き画像の送信に失敗:', err);
+        }
+    }
+
+    cropCancelBtn.addEventListener('click', () => {
+        console.log('🚫 ユーザーが切り抜きをキャンセル');
+        destroyCropper();
+        resetApp();
+    });
+
+    // 戻るボタン（店名入力 → 切り抜き編集）
     backBtn.addEventListener('click', () => {
+        console.log('⬅️ 店名入力 → 切り抜き画面に戻る');
+
+        appState = 'cropping';
+        console.log('🔒 アプリ状態 → cropping');
+
         editSection.classList.add('hidden');
         cropSection.classList.remove('hidden');
+
+        // Cropperを再初期化
+        if (currentBlobUrl) {
+            cropPreview.src = currentBlobUrl;
+            cropPreview.onload = () => {
+                initCropper();
+            };
+        }
     });
 
     // ========================================
@@ -370,6 +534,19 @@ document.addEventListener('DOMContentLoaded', () => {
             shopNameInput.focus();
             return;
         }
+
+        console.log('========================================');
+        console.log('💾 保存処理開始:', shopName);
+        console.log('========================================');
+
+        if (!currentFilename) {
+            console.error('❌ ファイル名が未設定 → サーバー処理が完了していない可能性');
+            showToast('⚠️ 画像の準備中です。もう少しお待ちください', 3000);
+            return;
+        }
+
+        appState = 'saving';
+        console.log('🔒 アプリ状態 → saving');
 
         editSection.classList.add('hidden');
         loading.classList.remove('hidden');
@@ -391,6 +568,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(data.error);
             }
 
+            console.log('✅ ラベル追加完了:', data.result_url);
+
             resultImage.src = data.result_url + '?t=' + Date.now();
             resultShopName.textContent = '店名: ' + shopName;
             downloadLink.href = data.result_url;
@@ -398,12 +577,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             setupShare(data.result_url, shopName);
 
+            appState = 'done';
+            console.log('🔒 アプリ状態 → done（完了）');
+
             loading.classList.add('hidden');
             resultSection.classList.remove('hidden');
 
         } catch (err) {
+            console.error('❌ 保存処理エラー:', err);
             loading.classList.add('hidden');
             editSection.classList.remove('hidden');
+            appState = 'editing';
             alert('エラー: ' + err.message);
         }
     });
@@ -414,8 +598,14 @@ document.addEventListener('DOMContentLoaded', () => {
     resetBtn.addEventListener('click', resetApp);
 
     function resetApp() {
-        // メモリリーク対策
+        console.log('🔄 アプリをリセット');
+
+        // リソース解放
         cleanupBlobUrl();
+        destroyCropper();
+
+        appState = 'idle';
+        console.log('🔒 アプリ状態 → idle');
 
         uploadSection.classList.remove('hidden');
         loading.classList.add('hidden');
@@ -427,7 +617,6 @@ document.addEventListener('DOMContentLoaded', () => {
         currentFilename = null;
         detectedShopName = null;
 
-        // バックグラウンド処理の状態をリセット
         serverProcessingState = {
             isProcessing: false,
             croppedImageUrl: null,
@@ -435,7 +624,6 @@ document.addEventListener('DOMContentLoaded', () => {
             error: null
         };
 
-        // バックグラウンドプログレスを非表示
         hideBackgroundProgress();
     }
 
@@ -458,7 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         files: [file]
                     });
                 } catch (err) {
-                    console.log('Share cancelled');
+                    console.log('共有キャンセル');
                 }
             } else {
                 const a = document.createElement('a');
@@ -479,7 +667,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/news');
             const data = await response.json();
 
-            console.log('=== News API Response ===', data);
+            console.log('📰 新店情報:', data.shops ? data.shops.length + '件' : '0件');
 
             if (!data.shops || data.shops.length === 0) {
                 container.innerHTML = '<p class="empty-state">新店情報がありません</p>';
@@ -498,7 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(ul);
 
         } catch (err) {
-            console.error('News fetch error:', err);
+            console.error('📰 新店情報の取得に失敗:', err);
             container.innerHTML = `
                 <div class="empty-state">
                     <p>データの取得に失敗しました</p>
@@ -537,18 +725,14 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="shop-meta">${metaInfo}</div>
         `;
 
-
-        // 店名リンクのクリックイベント（ラーメンデータベースへ）
         const shopNameLink = li.querySelector('.shop-name-link');
         shopNameLink.addEventListener('click', (e) => {
             e.stopPropagation();
-            // shop.urlにはラーメンデータベースのURLが入っている
             if (shop.url) {
                 window.open(shop.url, '_blank');
             }
         });
 
-        // ナビボタンのクリックイベント（Googleマップへ）
         const naviBtn = li.querySelector('.navi-btn');
         naviBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -557,7 +741,6 @@ document.addEventListener('DOMContentLoaded', () => {
             window.open(mapsUrl, '_blank');
         });
 
-        // 店名入力ボタン（店名を入力欄に反映）
         const setNameBtn = li.querySelector('.set-name-btn');
         if (setNameBtn) {
             setNameBtn.addEventListener('click', (e) => {
@@ -565,7 +748,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 shopNameInput.value = shop.name;
                 shopNameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-                // 視覚的フィードバック
                 setNameBtn.textContent = '✓';
                 setTimeout(() => {
                     setNameBtn.textContent = '↑入力';
@@ -575,7 +757,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return li;
     }
-
 
     // 初期化
     fetchNews();
