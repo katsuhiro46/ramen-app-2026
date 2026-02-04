@@ -22,12 +22,27 @@
         <main>
             <!-- 写真アップロード -->
             <section id="upload-section">
+                <!-- カメラ撮影用 -->
                 <input type="file" accept="image/*" id="camera-input" capture="environment"
                     style="opacity: 0; position: absolute; z-index: -1;">
-                <label for="camera-input" class="drop-zone" id="drop-zone">
+                <!-- ライブラリ選択用（captureなし） -->
+                <input type="file" accept="image/*" id="library-input"
+                    style="opacity: 0; position: absolute; z-index: -1;">
+
+                <div class="upload-buttons">
+                    <label for="camera-input" class="upload-btn camera-btn">
+                        <span class="btn-icon">📸</span>
+                        <span class="btn-label">カメラ撮影</span>
+                    </label>
+                    <label for="library-input" class="upload-btn library-btn">
+                        <span class="btn-icon">🖼️</span>
+                        <span class="btn-label">写真を選択</span>
+                    </label>
+                </div>
+
+                <label for="library-input" class="drop-zone" id="drop-zone">
                     <div class="drop-zone-content">
-                        <span class="camera-icon">📸</span>
-                        <p>タップして撮影<br>または写真を選択</p>
+                        <p>または写真をここにドラッグ＆ドロップ</p>
                     </div>
                 </label>
             </section>
@@ -42,12 +57,12 @@
 
             <!-- Step 1: 切り抜き編集画面 -->
             <section id="crop-section" class="hidden">
-                <h2>✂️ 指でどんぶりギリギリに合わせろ</h2>
-                <p class="crop-instruction">枠をドラッグ・ピンチで調整 → 納得したら「決定」</p>
+                <h2>✂️ どんぶりギリギリで切り抜け</h2>
+                <p class="crop-instruction">AI検知で枠を自動セット済み / 微調整も可能</p>
 
-                <!-- 切り抜き座標モニター（デカデカ表示） -->
+                <!-- 切り抜き座標モニター -->
                 <div id="crop-coords" class="crop-coords">
-                    <span id="coord-status" class="coord-error">⛔ 枠を動かせ</span>
+                    <span id="coord-status" class="coord-waiting">⏳ 検知中...</span>
                     <span id="coord-values">X:0 Y:0 W:0 H:0</span>
                 </div>
 
@@ -55,7 +70,7 @@
                     <img id="crop-preview" src="" alt="Crop Preview">
                 </div>
                 <div class="crop-actions">
-                    <button id="crop-done-btn" class="primary" disabled>🔒 まず枠を動かせ</button>
+                    <button id="crop-done-btn" class="primary" disabled>⏳ どんぶり検知中...</button>
                     <button id="crop-cancel-btn" class="secondary">キャンセル</button>
                 </div>
             </section>
@@ -63,13 +78,9 @@
             <!-- Step 2: 店名入力画面 -->
             <section id="edit-section" class="hidden">
                 <h2>📝 店名を入力</h2>
-
-                <!-- 加工済み画像 -->
                 <div class="preview-container">
                     <img id="preview-image" src="" alt="Cropped Image">
                 </div>
-
-                <!-- 店名入力 -->
                 <div class="edit-form">
                     <label for="shop-name">店名</label>
                     <input type="text" id="shop-name" placeholder="店名を入力してください">
@@ -111,9 +122,7 @@
 
         </main>
     </div>
-    <!-- EXIF対応画像処理ライブラリ -->
     <script src="https://cdn.jsdelivr.net/npm/blueimp-load-image@5.16.0/js/load-image.all.min.js"></script>
-    <!-- Cropper.js - インタラクティブ切り抜き -->
     <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
     <script src="/static/js/main.js"></script>
 </body>

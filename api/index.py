@@ -160,19 +160,29 @@ def analyze():
             })
 
         # ========================================
-        # Step 5: クロップ処理を実行
+        # Step 5: どんぶり自動検知
+        # ========================================
+        bowl_data = None
+        try:
+            bowl_data = cropper.detect_bowl(filepath)
+            if bowl_data:
+                print(f"🔍 どんぶり検知成功: method={bowl_data.get('method')} "
+                      f"cx={bowl_data['cx']:.3f} cy={bowl_data['cy']:.3f} r={bowl_data['r']:.3f}")
+        except Exception as e:
+            print(f"⚠️ どんぶり検知エラー: {e}")
+
+        # ========================================
+        # Step 6: クロップ処理を実行
         # ========================================
         cropped_filename = f"cropped_{unique_filename}"
         cropped_path = os.path.join(app.config['OUTPUT_FOLDER'], cropped_filename)
-        
+
         crop_success = cropper.crop_bowl(filepath, cropped_path)
-        
+
         if crop_success:
-            # クロップ成功 → クロップ済み画像を返す
             image_url = f'/results/{cropped_filename}'
             print(f"✅ Crop success: {cropped_path}")
         else:
-            # クロップ失敗 → 元画像を返す（フォールバック）
             image_url = f'/uploads/{unique_filename}'
             print(f"⚠️ Crop failed, using original image")
 
@@ -183,6 +193,7 @@ def analyze():
             'detection_method': detection_method,
             'image_url': image_url,
             'crop_success': crop_success,
+            'bowl': bowl_data,
             'debug': {
                 'gps_detected': gps_detected,
                 'lat': gps_lat,

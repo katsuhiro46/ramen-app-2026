@@ -1,18 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('========================================');
-    console.log('🍜 ラーメンアプリ 起動');
-    console.log('========================================');
+    console.log('🍜 ラーメンアプリ起動');
 
-    // ========================================
-    // 要素の取得
-    // ========================================
+    // 要素
     const dropZone = document.getElementById('drop-zone');
-    const fileInput = document.getElementById('camera-input');
+    const cameraInput = document.getElementById('camera-input');
+    const libraryInput = document.getElementById('library-input');
     const uploadSection = document.getElementById('upload-section');
     const loading = document.getElementById('loading');
     const stepStatus = document.getElementById('step-status');
 
-    // クロップ編集画面
     const cropSection = document.getElementById('crop-section');
     const cropPreview = document.getElementById('crop-preview');
     const cropDoneBtn = document.getElementById('crop-done-btn');
@@ -20,7 +16,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const coordStatus = document.getElementById('coord-status');
     const coordValues = document.getElementById('coord-values');
 
-    // 店名入力画面
     const editSection = document.getElementById('edit-section');
     const previewImage = document.getElementById('preview-image');
     const shopNameInput = document.getElementById('shop-name');
@@ -28,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById('save-btn');
     const backBtn = document.getElementById('back-btn');
 
-    // 結果画面
     const resultSection = document.getElementById('result-section');
     const resultImage = document.getElementById('result-image');
     const resultShopName = document.getElementById('result-shop-name');
@@ -37,238 +31,148 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetBtn = document.getElementById('reset-btn');
 
     let currentFilename = null;
-
-    // Cropper.js インスタンス
     let cropperInstance = null;
-
-    // ユーザーが枠を動かしたかどうかのフラグ（強制停止用）
-    let userHasAdjusted = false;
-    let cropMoveCount = 0;
-
-    // 画面状態の管理（素通りバグ防止）
-    let appState = 'idle'; // idle | cropping | editing | saving | done
-
-    // バックグラウンド処理用の変数
+    let appState = 'idle';
     let currentBlobUrl = null;
     let currentProcessId = 0;
+    let bowlApplied = false;  // どんぶり検知が適用済みか
+
     let serverProcessingState = {
         isProcessing: false,
-        croppedImageUrl: null,
         detectedShopName: null,
+        bowlData: null,
         error: null
     };
 
     // ========================================
-    // EXIF回転を物理的に適用して正しい向きの画像を返す
+    // EXIF回転補正
     // ========================================
     function correctImageOrientation(file) {
         return new Promise((resolve) => {
-            console.log('📐 EXIF回転補正開始:', file.name);
-
-            loadImage(
-                file,
-                (canvas) => {
-                    if (canvas.type === 'error') {
-                        console.warn('⚠️ EXIF処理失敗 → 元ファイルを使用');
-                        resolve(URL.createObjectURL(file));
-                        return;
-                    }
-
-                    console.log('📐 EXIF補正後:', canvas.width + 'x' + canvas.height);
-
-                    canvas.toBlob((blob) => {
-                        const url = URL.createObjectURL(blob);
-                        console.log('✅ EXIF回転を物理的に適用完了');
-                        resolve(url);
-                    }, 'image/jpeg', 0.92);
-                },
-                {
-                    orientation: true,
-                    canvas: true,
-                    maxWidth: 1600,
-                    maxHeight: 1600
+            console.log('📐 EXIF回転補正:', file.name);
+            loadImage(file, (canvas) => {
+                if (canvas.type === 'error') {
+                    resolve(URL.createObjectURL(file));
+                    return;
                 }
-            );
+                console.log('📐 補正後: ' + canvas.width + 'x' + canvas.height);
+                canvas.toBlob((blob) => {
+                    resolve(URL.createObjectURL(blob));
+                }, 'image/jpeg', 0.92);
+            }, { orientation: true, canvas: true, maxWidth: 1600, maxHeight: 1600 });
         });
     }
 
-    // ========================================
-    // サーバー送信用リサイズ
-    // ========================================
-    async function resizeImage(file, maxSize) {
+    function resizeImage(file, maxSize) {
         return new Promise((resolve) => {
-            loadImage(
-                file,
-                (canvas) => {
-                    if (canvas.type === 'error') {
-                        resolve(file);
-                        return;
-                    }
-                    canvas.toBlob((blob) => {
-                        resolve(new File([blob], file.name, { type: 'image/jpeg' }));
-                    }, 'image/jpeg', 0.9);
-                },
-                { orientation: true, canvas: true, maxWidth: maxSize, maxHeight: maxSize }
-            );
+            loadImage(file, (canvas) => {
+                if (canvas.type === 'error') { resolve(file); return; }
+                canvas.toBlob((blob) => {
+                    resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+                }, 'image/jpeg', 0.9);
+            }, { orientation: true, canvas: true, maxWidth: maxSize, maxHeight: maxSize });
         });
     }
 
-    // ========================================
-    // UI部品
-    // ========================================
+    // UI
     function showBackgroundProgress(msg) {
-        const el = document.getElementById('background-progress');
+        var el = document.getElementById('background-progress');
         if (el) el.remove();
-        const div = document.createElement('div');
+        var div = document.createElement('div');
         div.id = 'background-progress';
         div.className = 'background-progress';
         div.innerHTML = '<div class="progress-content"><span class="spinner-small"></span><span>' + msg + '</span></div>';
         document.body.appendChild(div);
     }
-
     function hideBackgroundProgress() {
-        const el = document.getElementById('background-progress');
-        if (el) { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }
+        var el = document.getElementById('background-progress');
+        if (el) { el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 300); }
     }
-
     function showToast(msg, dur) {
         dur = dur || 3000;
-        const t = document.createElement('div');
-        t.className = 'toast';
-        t.textContent = msg;
+        var t = document.createElement('div');
+        t.className = 'toast'; t.textContent = msg;
         document.body.appendChild(t);
-        setTimeout(() => t.classList.add('show'), 10);
-        setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, dur);
+        setTimeout(function() { t.classList.add('show'); }, 10);
+        setTimeout(function() { t.classList.remove('show'); setTimeout(function() { t.remove(); }, 300); }, dur);
     }
-
     function cleanupBlobUrl() {
         if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
     }
-
     function destroyCropper() {
-        if (cropperInstance) {
-            cropperInstance.destroy();
-            cropperInstance = null;
-            console.log('🔧 Cropperインスタンス破棄');
-        }
+        if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
     }
 
     // ========================================
-    // 決定ボタンのロック制御
-    // ========================================
-    function lockDoneButton() {
-        userHasAdjusted = false;
-        cropMoveCount = 0;
-        cropDoneBtn.disabled = true;
-        cropDoneBtn.textContent = '🔒 まず枠を動かせ';
-        cropDoneBtn.classList.add('locked');
-        coordStatus.textContent = '⛔ 枠を動かせ';
-        coordStatus.className = 'coord-error';
-        coordValues.textContent = 'X:0 Y:0 W:0 H:0';
-        console.log('🔒 決定ボタンをロック → ユーザーが枠を操作するまで進めない');
-    }
-
-    function unlockDoneButton() {
-        if (!userHasAdjusted) {
-            userHasAdjusted = true;
-            cropDoneBtn.disabled = false;
-            cropDoneBtn.textContent = '✅ この切り抜きで決定 → 店名入力へ';
-            cropDoneBtn.classList.remove('locked');
-            coordStatus.textContent = '✅ OK';
-            coordStatus.className = 'coord-ok';
-            console.log('🔓 決定ボタンをアンロック → ユーザーが枠を操作した');
-        }
-    }
-
-    // ========================================
-    // 座標のリアルタイム表示
+    // 座標表示
     // ========================================
     function updateCoordDisplay(data) {
-        const x = Math.round(data.x);
-        const y = Math.round(data.y);
-        const w = Math.round(data.width);
-        const h = Math.round(data.height);
+        var x = Math.round(data.x), y = Math.round(data.y);
+        var w = Math.round(data.width), h = Math.round(data.height);
         coordValues.textContent = 'X:' + x + ' Y:' + y + ' W:' + w + ' H:' + h;
-
-        if (w === 0 || h === 0) {
-            coordStatus.textContent = '⛔ エラー: 幅・高さが0';
-            coordStatus.className = 'coord-error';
-            cropDoneBtn.disabled = true;
-            cropDoneBtn.textContent = '⛔ 切り抜き範囲がない';
-            console.error('❌ 切り抜き座標エラー: 幅または高さが0');
-        }
     }
 
     // ========================================
-    // 写真アップロード
+    // 写真アップロード（カメラ・ライブラリ共通）
     // ========================================
-    fileInput.addEventListener('change', (e) => {
-        const f = e.target.files[0];
+    cameraInput.addEventListener('change', function(e) {
+        var f = e.target.files[0];
+        if (f) handleUpload(f);
+    });
+    libraryInput.addEventListener('change', function(e) {
+        var f = e.target.files[0];
         if (f) handleUpload(f);
     });
 
-    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-    dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-        const f = e.dataTransfer.files[0];
+    dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('dragover'); });
+    dropZone.addEventListener('drop', function(e) {
+        e.preventDefault(); dropZone.classList.remove('dragover');
+        var f = e.dataTransfer.files[0];
         if (f && f.type.startsWith('image/')) handleUpload(f);
     });
 
     // ========================================
-    // Step 1: アップロード → 切り抜き画面（強制停止）
+    // Step 1: アップロード → 切り抜き画面
     // ========================================
     async function handleUpload(file) {
         console.log('========================================');
-        console.log('📸 写真を受け取った:', file.name, '(' + file.size + ' bytes)');
-        console.log('========================================');
+        console.log('📸 写真受信:', file.name, '(' + file.size + ' bytes)');
 
         appState = 'cropping';
-        console.log('🔒 状態 → cropping（切り抜き画面を強制表示）');
-
+        bowlApplied = false;
         cleanupBlobUrl();
         destroyCropper();
-        lockDoneButton();
 
-        // EXIF回転を物理適用
-        console.log('📐 Pixel 6a対応: EXIF回転を物理適用中...');
-        const correctedUrl = await correctImageOrientation(file);
+        // ボタンを「検知中」状態にする
+        cropDoneBtn.disabled = true;
+        cropDoneBtn.textContent = '⏳ どんぶり検知中...';
+        cropDoneBtn.classList.add('locked');
+        coordStatus.textContent = '⏳ 検知中...';
+        coordStatus.className = 'coord-waiting';
+        coordValues.textContent = 'X:0 Y:0 W:0 H:0';
+
+        // EXIF回転
+        var correctedUrl = await correctImageOrientation(file);
         currentBlobUrl = correctedUrl;
 
-        // ★★★ 致命的バグ修正 ★★★
-        // onloadハンドラをsrcセットの【前】に登録する
-        // Blob URLは即座にロードされるので、src設定後にonloadを登録しても間に合わない
-        console.log('🔧 onloadハンドラを先に登録（レースコンディション防止）');
-
-        cropPreview.onload = () => {
-            console.log('========================================');
-            console.log('🖼️ 画像ロード完了 → Cropper.js を今から初期化する');
-            console.log('========================================');
-
-            // 画面が表示されていることを確認
+        // onloadを先に登録（レースコンディション防止）
+        cropPreview.onload = function() {
+            console.log('🖼️ 画像ロード完了 → Cropper.js初期化');
             if (cropSection.classList.contains('hidden')) {
-                console.error('❌ 異常: crop-sectionがhidden → 強制表示');
                 cropSection.classList.remove('hidden');
             }
-
-            // Cropper初期化（少し遅延させてDOMレンダリングを待つ）
-            setTimeout(() => {
-                initCropper();
-            }, 100);
+            setTimeout(function() { initCropper(); }, 100);
         };
 
-        // 画面を先に表示
+        // 画面表示
         uploadSection.classList.add('hidden');
         cropSection.classList.remove('hidden');
-        console.log('🖼️ 切り抜き画面を表示した');
-        console.log('⚠️ ユーザーが枠を動かして「決定」を押すまで絶対にスキップしない');
 
-        // srcをセット → onloadが発火 → initCropper
+        // src設定 → onload発火
         cropPreview.src = correctedUrl;
-        console.log('🖼️ 画像srcをセット → onload待ち');
 
-        // バックグラウンドでサーバー処理
+        // バックグラウンドでサーバー処理（どんぶり検知 + 店名検出）
         processInBackground(file);
     }
 
@@ -278,15 +182,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function initCropper() {
         destroyCropper();
 
-        console.log('✂️ Cropper.js 初期化開始...');
-        console.log('✂️ 対象要素:', cropPreview.tagName, cropPreview.naturalWidth + 'x' + cropPreview.naturalHeight);
-
         if (cropPreview.naturalWidth === 0) {
-            console.error('❌ 画像のnaturalWidthが0 → 画像がまだロードされていない');
-            console.log('⏳ 500ms後にリトライ...');
-            setTimeout(() => initCropper(), 500);
+            console.log('⏳ naturalWidth=0 → リトライ');
+            setTimeout(function() { initCropper(); }, 500);
             return;
         }
+
+        console.log('✂️ Cropper.js初期化: ' + cropPreview.naturalWidth + 'x' + cropPreview.naturalHeight);
 
         cropperInstance = new Cropper(cropPreview, {
             aspectRatio: 1,
@@ -307,84 +209,145 @@ document.addEventListener('DOMContentLoaded', () => {
             cropBoxMovable: true,
             cropBoxResizable: true,
 
-            ready: function () {
-                console.log('========================================');
-                console.log('✅ Cropper.js 準備完了！切り抜き操作が可能');
-                console.log('👆 枠をドラッグするか、ピンチで調整してください');
-                console.log('========================================');
+            ready: function() {
+                console.log('✅ Cropper.js準備完了');
 
-                // 丸型ガイド追加
-                const cropBox = document.querySelector('.cropper-crop-box');
+                // 丸型ガイド
+                var cropBox = document.querySelector('.cropper-crop-box');
                 if (cropBox) cropBox.classList.add('cropper-round');
 
-                // 初期座標を表示
-                const data = cropperInstance.getData();
+                // 初期座標表示
+                var data = cropperInstance.getData();
                 updateCoordDisplay(data);
-                console.log('📐 初期座標: X=' + Math.round(data.x) + ' Y=' + Math.round(data.y) +
-                    ' W=' + Math.round(data.width) + ' H=' + Math.round(data.height));
-            },
 
-            // ★ ユーザー操作を検知 → ボタンアンロック＋座標更新
-            crop: function (event) {
-                cropMoveCount++;
-                const d = event.detail;
-                updateCoordDisplay(d);
-
-                // 2回以上のcropイベント = ユーザーが実際に枠を操作した
-                // （初回はautoCropによる自動発火なのでスキップ）
-                if (cropMoveCount > 1) {
-                    unlockDoneButton();
+                // サーバーからどんぶり座標が既に来ていたら即適用
+                if (serverProcessingState.bowlData && !bowlApplied) {
+                    applyBowlDetection(serverProcessingState.bowlData);
                 }
             },
 
-            cropstart: function () {
-                console.log('👆 ユーザーが切り抜き枠を触った');
-            },
-
-            cropmove: function () {
-                unlockDoneButton();
+            crop: function(event) {
+                updateCoordDisplay(event.detail);
             }
         });
-
-        console.log('✂️ Cropper.jsインスタンス生成完了');
     }
 
     // ========================================
-    // バックグラウンド処理（店名検出・サーバー保存）
+    // どんぶり検知結果をCropper.jsに適用
+    // ========================================
+    function applyBowlDetection(bowl) {
+        if (!cropperInstance || bowlApplied) return;
+        bowlApplied = true;
+
+        console.log('========================================');
+        console.log('🎯 どんぶり検知結果を適用: method=' + bowl.method);
+        console.log('   cx=' + bowl.cx.toFixed(3) + ' cy=' + bowl.cy.toFixed(3) + ' r=' + bowl.r.toFixed(3));
+
+        var imageData = cropperInstance.getImageData();
+        var natW = imageData.naturalWidth;
+        var natH = imageData.naturalHeight;
+        var minDim = Math.min(natW, natH);
+
+        // 比率 → 実ピクセル座標に変換
+        var cx = bowl.cx * natW;
+        var cy = bowl.cy * natH;
+        var r = bowl.r * minDim;
+
+        // Cropper.jsのsetDataは左上座標 + 幅高さ
+        var cropX = cx - r;
+        var cropY = cy - r;
+        var cropW = r * 2;
+        var cropH = r * 2;
+
+        // 範囲チェック
+        if (cropX < 0) cropX = 0;
+        if (cropY < 0) cropY = 0;
+        if (cropX + cropW > natW) cropW = natW - cropX;
+        if (cropY + cropH > natH) cropH = natH - cropY;
+
+        console.log('📐 Cropper座標にセット: X=' + Math.round(cropX) + ' Y=' + Math.round(cropY) +
+            ' W=' + Math.round(cropW) + ' H=' + Math.round(cropH));
+
+        cropperInstance.setData({
+            x: cropX,
+            y: cropY,
+            width: cropW,
+            height: cropH
+        });
+
+        // 座標表示を更新
+        updateCoordDisplay({ x: cropX, y: cropY, width: cropW, height: cropH });
+
+        // ボタンをアンロック（自動検知成功 = 完璧な位置）
+        cropDoneBtn.disabled = false;
+        cropDoneBtn.textContent = '✅ この切り抜きで決定 → 店名入力へ';
+        cropDoneBtn.classList.remove('locked');
+
+        if (bowl.method === 'hough') {
+            coordStatus.textContent = '🎯 AI検知: 完璧';
+            coordStatus.className = 'coord-perfect';
+            showToast('🎯 どんぶりを自動検知しました', 2000);
+        } else if (bowl.method === 'contour') {
+            coordStatus.textContent = '🎯 輪郭検知: 良好';
+            coordStatus.className = 'coord-ok';
+            showToast('🎯 どんぶり輪郭を検知しました', 2000);
+        } else {
+            coordStatus.textContent = '📌 推定位置';
+            coordStatus.className = 'coord-ok';
+        }
+
+        console.log('✅ 切り抜き枠をどんぶり位置に自動セット完了');
+        console.log('========================================');
+    }
+
+    // ========================================
+    // バックグラウンド処理
     // ========================================
     async function processInBackground(file) {
-        const pid = ++currentProcessId;
-        console.log('📡 バックグラウンド処理開始 (ID:' + pid + ')');
-
+        var pid = ++currentProcessId;
         serverProcessingState = {
-            isProcessing: true, croppedImageUrl: null,
-            detectedShopName: null, error: null
+            isProcessing: true, detectedShopName: null,
+            bowlData: null, error: null
         };
 
-        showBackgroundProgress('サーバー処理中...（切り抜き操作は自由にできます）');
+        showBackgroundProgress('どんぶり検知 + 店名検出中...');
 
         try {
-            const resized = await resizeImage(file, 1200);
-            const fd = new FormData();
+            var resized = await resizeImage(file, 1200);
+            var fd = new FormData();
             fd.append('file', resized);
 
-            console.log('📡 /analyze API呼び出し...');
-            const resp = await fetch('/analyze', { method: 'POST', body: fd });
-            const data = await resp.json();
-            console.log('📡 APIレスポンス:', JSON.stringify(data, null, 2));
+            var resp = await fetch('/analyze', { method: 'POST', body: fd });
+            var data = await resp.json();
+            console.log('📡 API応答:', JSON.stringify(data, null, 2));
 
-            if (pid !== currentProcessId) { console.log('⏭️ 古い結果 → 破棄'); return; }
+            if (pid !== currentProcessId) return;
             if (data.error) throw new Error(data.error);
 
             serverProcessingState.isProcessing = false;
-            serverProcessingState.croppedImageUrl = data.image_url;
             serverProcessingState.detectedShopName = data.shop_name;
+            serverProcessingState.bowlData = data.bowl;
             currentFilename = data.filename;
 
-            console.log('✅ サーバー処理完了: 店名=' + data.shop_name);
+            // どんぶり検知結果をCropperに適用
+            if (data.bowl && cropperInstance && !bowlApplied) {
+                applyBowlDetection(data.bowl);
+            } else if (data.bowl && !cropperInstance) {
+                // Cropperがまだ未準備 → readyイベントで適用される
+                console.log('📌 Cropper未準備 → ready時に適用予定');
+            }
+
+            // どんぶり検知なし + Cropper準備済みの場合はボタンアンロック
+            if (!data.bowl && cropperInstance) {
+                cropDoneBtn.disabled = false;
+                cropDoneBtn.textContent = '✅ この切り抜きで決定 → 店名入力へ';
+                cropDoneBtn.classList.remove('locked');
+                coordStatus.textContent = '📌 手動調整';
+                coordStatus.className = 'coord-ok';
+            }
 
             if (data.shop_name && !data.shop_name.includes('判定不能')) {
-                showToast('🚀 店名を自動検出: ' + data.shop_name);
+                showToast('🚀 店名検出: ' + data.shop_name, 3000);
             }
             hideBackgroundProgress();
 
@@ -393,94 +356,78 @@ document.addEventListener('DOMContentLoaded', () => {
             serverProcessingState.isProcessing = false;
             serverProcessingState.error = err.message;
             hideBackgroundProgress();
-            showToast('⚠️ サーバー処理失敗（元画像を使用）', 5000);
-            console.error('❌ バックグラウンドエラー:', err);
+
+            // エラーでもボタンはアンロック（手動操作を許可）
+            cropDoneBtn.disabled = false;
+            cropDoneBtn.textContent = '✅ この切り抜きで決定 → 店名入力へ';
+            cropDoneBtn.classList.remove('locked');
+            coordStatus.textContent = '⚠️ 手動調整';
+            coordStatus.className = 'coord-ok';
+
+            showToast('⚠️ サーバー処理失敗（手動調整可）', 5000);
+            console.error('❌ エラー:', err);
         }
     }
 
-    // ========================================
-    // リアルタイム店名更新
-    // ========================================
+    // 店名更新ウォッチャー
     function watchForShopNameUpdate() {
-        const iv = setInterval(() => {
+        var iv = setInterval(function() {
             if (!serverProcessingState.isProcessing) {
                 clearInterval(iv);
-                const name = serverProcessingState.detectedShopName;
+                var name = serverProcessingState.detectedShopName;
                 if (name && !name.includes('判定不能') && !name.includes('特定できません')) {
                     if (!shopNameInput.value.trim()) {
                         shopNameInput.value = name;
-                        showToast('🚀 店名を自動検出しました');
+                        showToast('🚀 店名を自動検出');
                         editHint.textContent = '✅ GPS検出完了';
                         editHint.style.color = '#0f0';
                     }
                 }
             }
         }, 500);
-        setTimeout(() => clearInterval(iv), 10000);
+        setTimeout(function() { clearInterval(iv); }, 10000);
     }
 
     // ========================================
-    // Step 2: 切り抜き決定 → 店名入力画面
+    // Step 2: 切り抜き決定
     // ========================================
-    cropDoneBtn.addEventListener('click', () => {
-        console.log('========================================');
-        console.log('✅ ユーザーが切り抜きを決定');
-        console.log('========================================');
+    cropDoneBtn.addEventListener('click', function() {
+        console.log('✅ 切り抜き決定');
 
-        if (appState !== 'cropping') {
-            console.warn('⚠️ 状態不正:', appState);
-            return;
-        }
+        if (appState !== 'cropping') return;
 
-        if (!userHasAdjusted) {
-            console.warn('⛔ ユーザーが枠を動かしていない → ブロック');
-            showToast('⛔ まず枠をドラッグして調整してください', 3000);
-            return;
-        }
-
-        // Cropper.jsから座標チェック
         if (cropperInstance) {
-            const data = cropperInstance.getData();
-            console.log('📐 最終座標: X=' + Math.round(data.x) + ' Y=' + Math.round(data.y) +
-                ' W=' + Math.round(data.width) + ' H=' + Math.round(data.height));
-
+            var data = cropperInstance.getData();
             if (data.width === 0 || data.height === 0) {
-                console.error('❌ 座標が0 → 進行をブロック');
-                showToast('⛔ エラー: 切り抜き範囲がありません', 3000);
+                showToast('⛔ 切り抜き範囲がありません', 3000);
                 return;
             }
 
-            // 切り抜き画像を取得
-            const canvas = cropperInstance.getCroppedCanvas({
-                maxWidth: 1200,
-                maxHeight: 1200,
-                imageSmoothingEnabled: true,
-                imageSmoothingQuality: 'high'
+            var canvas = cropperInstance.getCroppedCanvas({
+                maxWidth: 1200, maxHeight: 1200,
+                imageSmoothingEnabled: true, imageSmoothingQuality: 'high'
             });
-
             if (canvas) {
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+                var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
                 previewImage.src = dataUrl;
-                console.log('✂️ 切り抜き完了: ' + canvas.width + 'x' + canvas.height);
+                console.log('✂️ 切り抜き: ' + canvas.width + 'x' + canvas.height);
                 sendCroppedImage(dataUrl);
             } else {
-                console.error('❌ getCroppedCanvasが失敗');
                 previewImage.src = currentBlobUrl;
             }
         } else {
-            console.error('❌ cropperInstanceがnull');
             previewImage.src = currentBlobUrl;
         }
 
-        // 店名の自動入力
-        const detected = serverProcessingState.detectedShopName;
+        // 店名自動入力
+        var detected = serverProcessingState.detectedShopName;
         if (detected && !detected.includes('判定不能') && !detected.includes('特定できません')) {
             shopNameInput.value = detected;
-            editHint.textContent = '🚀 GPSから店名を自動検出しました';
+            editHint.textContent = '🚀 GPSから店名を自動検出';
             editHint.style.color = '#0f0';
         } else if (serverProcessingState.isProcessing) {
             shopNameInput.value = '';
-            editHint.textContent = '⏳ サーバー処理中... 手動入力も可能です';
+            editHint.textContent = '⏳ サーバー処理中... 手動入力も可能';
             editHint.style.color = '#ff9800';
         } else {
             shopNameInput.value = '';
@@ -489,79 +436,61 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         destroyCropper();
-
         appState = 'editing';
-        console.log('🔒 状態 → editing');
-
         cropSection.classList.add('hidden');
         editSection.classList.remove('hidden');
 
         if (serverProcessingState.isProcessing) watchForShopNameUpdate();
     });
 
-    // ========================================
-    // 切り抜き画像をサーバーに送信
-    // ========================================
+    // 切り抜き画像送信
     async function sendCroppedImage(dataUrl) {
-        console.log('📤 切り抜き画像をサーバーに送信...');
         try {
-            const resp = await fetch(dataUrl);
-            const blob = await resp.blob();
-            const fd = new FormData();
+            var resp = await fetch(dataUrl);
+            var blob = await resp.blob();
+            var fd = new FormData();
             fd.append('file', new File([blob], 'cropped.jpg', { type: 'image/jpeg' }));
-
-            const result = await fetch('/api/simple-crop', { method: 'POST', body: fd });
-            const data = await result.json();
-            console.log('✅ サーバー保存完了:', data);
-
-            if (data.success && data.filename) {
-                currentFilename = data.filename;
-            }
+            var result = await fetch('/api/simple-crop', { method: 'POST', body: fd });
+            var data = await result.json();
+            if (data.success && data.filename) currentFilename = data.filename;
         } catch (err) {
-            console.error('❌ 切り抜き送信失敗:', err);
+            console.error('❌ 送信失敗:', err);
         }
     }
 
-    cropCancelBtn.addEventListener('click', () => {
-        console.log('🚫 キャンセル');
-        destroyCropper();
-        resetApp();
-    });
+    cropCancelBtn.addEventListener('click', function() { destroyCropper(); resetApp(); });
 
-    backBtn.addEventListener('click', () => {
-        console.log('⬅️ 戻る → 切り抜き画面');
+    backBtn.addEventListener('click', function() {
         appState = 'cropping';
-        lockDoneButton();
-
+        bowlApplied = false;
         editSection.classList.add('hidden');
         cropSection.classList.remove('hidden');
 
+        cropDoneBtn.disabled = true;
+        cropDoneBtn.textContent = '⏳ 再初期化中...';
+
         if (currentBlobUrl) {
-            cropPreview.onload = () => initCropper();
-            cropPreview.src = '';  // 一旦リセット
+            cropPreview.onload = function() {
+                initCropper();
+                // 前回の検知結果があれば再適用
+                if (serverProcessingState.bowlData) {
+                    setTimeout(function() {
+                        if (cropperInstance) applyBowlDetection(serverProcessingState.bowlData);
+                    }, 300);
+                }
+            };
+            cropPreview.src = '';
             cropPreview.src = currentBlobUrl;
         }
     });
 
     // ========================================
-    // Step 3: 保存処理
+    // Step 3: 保存
     // ========================================
-    saveBtn.addEventListener('click', async () => {
-        const shopName = shopNameInput.value.trim();
-        if (!shopName) {
-            alert('店名を入力してください');
-            shopNameInput.focus();
-            return;
-        }
-
-        console.log('========================================');
-        console.log('💾 保存処理開始:', shopName);
-        console.log('========================================');
-
-        if (!currentFilename) {
-            showToast('⚠️ 画像の準備中です。もう少しお待ちください', 3000);
-            return;
-        }
+    saveBtn.addEventListener('click', async function() {
+        var shopName = shopNameInput.value.trim();
+        if (!shopName) { alert('店名を入力してください'); shopNameInput.focus(); return; }
+        if (!currentFilename) { showToast('⚠️ 画像の準備中です', 3000); return; }
 
         appState = 'saving';
         editSection.classList.add('hidden');
@@ -569,15 +498,13 @@ document.addEventListener('DOMContentLoaded', () => {
         stepStatus.textContent = '🎨 ラベルを追加中...';
 
         try {
-            const resp = await fetch('/process', {
+            var resp = await fetch('/process', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ filename: currentFilename, shop_name: shopName })
             });
-            const data = await resp.json();
+            var data = await resp.json();
             if (data.error) throw new Error(data.error);
-
-            console.log('✅ ラベル追加完了:', data.result_url);
 
             resultImage.src = data.result_url + '?t=' + Date.now();
             resultShopName.textContent = '店名: ' + shopName;
@@ -588,9 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
             appState = 'done';
             loading.classList.add('hidden');
             resultSection.classList.remove('hidden');
-
         } catch (err) {
-            console.error('❌ 保存エラー:', err);
             loading.classList.add('hidden');
             editSection.classList.remove('hidden');
             appState = 'editing';
@@ -598,73 +523,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ========================================
     // リセット
-    // ========================================
     resetBtn.addEventListener('click', resetApp);
-
     function resetApp() {
-        console.log('🔄 リセット');
-        cleanupBlobUrl();
-        destroyCropper();
-        appState = 'idle';
-
+        cleanupBlobUrl(); destroyCropper();
+        appState = 'idle'; bowlApplied = false;
         uploadSection.classList.remove('hidden');
         loading.classList.add('hidden');
         cropSection.classList.add('hidden');
         editSection.classList.add('hidden');
         resultSection.classList.add('hidden');
-        fileInput.value = '';
-        shopNameInput.value = '';
-        currentFilename = null;
-        userHasAdjusted = false;
-        cropMoveCount = 0;
-
-        serverProcessingState = {
-            isProcessing: false, croppedImageUrl: null,
-            detectedShopName: null, error: null
-        };
+        cameraInput.value = ''; libraryInput.value = '';
+        shopNameInput.value = ''; currentFilename = null;
+        serverProcessingState = { isProcessing: false, detectedShopName: null, bowlData: null, error: null };
         hideBackgroundProgress();
     }
 
-    // ========================================
-    // 共有機能
-    // ========================================
+    // 共有
     function setupShare(imageUrl, shopName) {
-        shareBtn.onclick = async (e) => {
+        shareBtn.onclick = async function(e) {
             e.preventDefault();
             if (navigator.share) {
                 try {
-                    const resp = await fetch(imageUrl);
-                    const blob = await resp.blob();
-                    const file = new File([blob], 'ramen.jpg', { type: 'image/jpeg' });
+                    var resp = await fetch(imageUrl);
+                    var blob = await resp.blob();
+                    var file = new File([blob], 'ramen.jpg', { type: 'image/jpeg' });
                     await navigator.share({ title: shopName, text: shopName + 'のラーメン 🍜', files: [file] });
-                } catch (err) { console.log('共有キャンセル'); }
+                } catch (err) {}
             } else {
-                const a = document.createElement('a');
-                a.href = imageUrl;
-                a.download = shopName + '.jpg';
-                a.click();
+                var a = document.createElement('a'); a.href = imageUrl; a.download = shopName + '.jpg'; a.click();
             }
         };
     }
 
-    // ========================================
     // 新店情報
-    // ========================================
     async function fetchNews() {
-        const container = document.getElementById('shop-container');
+        var container = document.getElementById('shop-container');
         try {
-            const resp = await fetch('/api/news');
-            const data = await resp.json();
+            var resp = await fetch('/api/news');
+            var data = await resp.json();
             if (!data.shops || data.shops.length === 0) {
-                container.innerHTML = '<p class="empty-state">新店情報がありません</p>';
-                return;
+                container.innerHTML = '<p class="empty-state">新店情報がありません</p>'; return;
             }
             container.innerHTML = '';
-            const ul = document.createElement('ul');
-            ul.className = 'shop-list';
-            data.shops.forEach(shop => ul.appendChild(createShopItem(shop)));
+            var ul = document.createElement('ul'); ul.className = 'shop-list';
+            data.shops.forEach(function(shop) { ul.appendChild(createShopItem(shop)); });
             container.appendChild(ul);
         } catch (err) {
             container.innerHTML = '<div class="empty-state"><p>データの取得に失敗しました</p></div>';
@@ -672,40 +575,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function createShopItem(shop) {
-        const li = document.createElement('li');
-        li.className = 'shop-item';
-        const metaParts = [];
+        var li = document.createElement('li'); li.className = 'shop-item';
+        var metaParts = [];
         if (shop.station && shop.station.trim()) metaParts.push(shop.station);
         if (shop.city && shop.city.trim()) metaParts.push(shop.city);
-        const metaInfo = metaParts.join(' / ');
-        const prefCode = { '群馬': 'gunma', '栃木': 'tochigi', '埼玉': 'saitama', '茨城': 'ibaraki' }[shop.area] || 'default';
+        var metaInfo = metaParts.join(' / ');
+        var prefCode = { '群馬': 'gunma', '栃木': 'tochigi', '埼玉': 'saitama', '茨城': 'ibaraki' }[shop.area] || 'default';
 
         li.innerHTML = '<div class="shop-header">' +
             '<span class="shop-area-badge" data-pref="' + prefCode + '">' + shop.area + '</span>' +
             '<span class="shop-name-link">' + shop.name + '</span>' +
             '<button class="set-name-btn">↑入力</button>' +
-            '<button class="navi-btn">📍ナビ</button>' +
-            '</div>' +
+            '<button class="navi-btn">📍ナビ</button></div>' +
             '<div class="shop-meta">' + metaInfo + '</div>';
 
-        li.querySelector('.shop-name-link').addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (shop.url) window.open(shop.url, '_blank');
+        li.querySelector('.shop-name-link').addEventListener('click', function(e) {
+            e.stopPropagation(); if (shop.url) window.open(shop.url, '_blank');
         });
-        li.querySelector('.navi-btn').addEventListener('click', (e) => {
+        li.querySelector('.navi-btn').addEventListener('click', function(e) {
             e.stopPropagation();
             window.open('https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(shop.name + ' ' + metaInfo), '_blank');
         });
-        const btn = li.querySelector('.set-name-btn');
-        if (btn) {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                shopNameInput.value = shop.name;
-                shopNameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                btn.textContent = '✓';
-                setTimeout(() => { btn.textContent = '↑入力'; }, 1000);
-            });
-        }
+        var btn = li.querySelector('.set-name-btn');
+        if (btn) btn.addEventListener('click', function(e) {
+            e.stopPropagation(); shopNameInput.value = shop.name;
+            shopNameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            btn.textContent = '✓'; setTimeout(function() { btn.textContent = '↑入力'; }, 1000);
+        });
         return li;
     }
 
