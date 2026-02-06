@@ -59,70 +59,78 @@ def is_excluded_shop(name: str) -> bool:
 
 def search_nearby_ramen(lat: float, lon: float, radius: int = 300) -> List[Dict]:
     """
-    Overpass APIで周辺のラーメン店・麺類店を検索
+    Overpass APIで周辺のラーメン店のみを厳格に検索
+    cuisine=ramen または ramen_restaurant のみ
     """
     candidates = []
-    
+
     try:
-        # ラーメン・麺類に限定した検索クエリ
+        # ラーメン専用の厳格なクエリ
         query = f"""
         [out:json][timeout:15];
         (
-          node["cuisine"="ramen"](around:{radius},{lat},{lon});
-          node["cuisine"="noodle"](around:{radius},{lat},{lon});
-          node["cuisine"="noodles"](around:{radius},{lat},{lon});
-          node["cuisine"="japanese"](around:{radius},{lat},{lon});
-          node["amenity"="restaurant"](around:{radius},{lat},{lon});
-          node["amenity"="fast_food"](around:{radius},{lat},{lon});
+          node["cuisine"~"ramen"](around:{radius},{lat},{lon});
+          way["cuisine"~"ramen"](around:{radius},{lat},{lon});
         );
-        out body;
+        out body center;
         """
-        
+
         url = "https://overpass-api.de/api/interpreter"
-        print(f"[Overpass] Searching ramen shops within {radius}m")
-        
+        print(f"[Overpass] Searching RAMEN ONLY within {radius}m")
+
         response = requests.post(url, data={'data': query}, timeout=20)
         data = response.json()
-        
+
         elements = data.get('elements', [])
-        print(f"[Overpass] Found {len(elements)} elements")
-        
+        print(f"[Overpass] Found {len(elements)} ramen elements")
+
         for elem in elements:
             tags = elem.get('tags', {})
             name = tags.get('name', tags.get('name:ja', ''))
             cuisine = tags.get('cuisine', '')
-            
+
             if not name:
                 continue
-            
+
             # 除外リストに該当するものはスキップ
             if is_excluded_shop(name):
                 print(f"  Excluded: {name}")
                 continue
-            
-            elem_lat = elem.get('lat', lat)
-            elem_lon = elem.get('lon', lon)
+
+            # 座標を取得（way の場合は center を使用）
+            if elem.get('type') == 'way':
+                center = elem.get('center', {})
+                elem_lat = center.get('lat', lat)
+                elem_lon = center.get('lon', lon)
+            else:
+                elem_lat = elem.get('lat', lat)
+                elem_lon = elem.get('lon', lon)
+
             distance = haversine_distance(lat, lon, elem_lat, elem_lon)
-            
-            # ラーメン店かどうか判定
-            is_ramen = is_ramen_shop(name, cuisine)
-            
+
+            # 厳格なラーメン判定（cuisine に ramen が含まれるもののみ）
+            cuisine_lower = cuisine.lower()
+            if 'ramen' not in cuisine_lower:
+                # cuisine が ramen でない場合は店名で再判定
+                if not is_ramen_shop(name, cuisine):
+                    print(f"  ❌ Not ramen: {name} (cuisine={cuisine})")
+                    continue
+
             candidates.append({
                 'name': name,
                 'distance': distance,
                 'lat': elem_lat,
                 'lon': elem_lon,
-                'is_ramen': is_ramen,
+                'is_ramen': True,  # この関数はラーメン店のみ返す
                 'cuisine': cuisine,
                 'source': 'overpass'
             })
-            
-            ramen_mark = "🍜" if is_ramen else "  "
-            print(f"  {ramen_mark} {name} ({distance:.0f}m) cuisine={cuisine}")
-        
+
+            print(f"  🍜 {name} ({distance:.0f}m) cuisine={cuisine}")
+
     except Exception as e:
         print(f"[Overpass] Error: {e}")
-    
+
     return candidates
 
 

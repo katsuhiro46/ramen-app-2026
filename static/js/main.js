@@ -40,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let appState = 'idle';
     let currentBlobUrl = null;
     let currentProcessId = 0;
-    let bowlApplied = false;
 
     let serverProcessingState = {
         isProcessing: false,
@@ -147,16 +146,15 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('📸 写真受信:', file.name, '(' + file.size + ' bytes)');
 
         appState = 'cropping';
-        bowlApplied = false;
         cleanupBlobUrl();
         destroyCropper();
 
-        // ボタンを「検知中」状態にする
-        cropDoneBtn.disabled = true;
-        cropDoneBtn.textContent = '⏳ どんぶり検知中...';
-        cropDoneBtn.classList.add('locked');
-        coordStatus.textContent = '⏳ 検知中...';
-        coordStatus.className = 'coord-waiting';
+        // ボタンを初期状態にする（手動調整待ち）
+        cropDoneBtn.disabled = false;
+        cropDoneBtn.textContent = '✅ OK → 店名入力へ';
+        cropDoneBtn.classList.remove('locked');
+        coordStatus.textContent = '📌 手動で調整してください';
+        coordStatus.className = 'coord-ok';
         coordValues.textContent = 'X:0 Y:0 W:0 H:0';
 
         // EXIF回転
@@ -206,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
             center: true,
             background: true,
             autoCrop: true,
-            autoCropArea: 0.85,
+            autoCropArea: 0.80,  // 初期サイズ80%で中央配置
             movable: true,
             rotatable: false,
             scalable: true,
@@ -217,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cropBoxResizable: true,
 
             ready: function() {
-                console.log('✅ Cropper.js準備完了');
+                console.log('✅ Cropper.js準備完了（80%中央配置）');
 
                 // 丸型ガイド
                 var cropBox = document.querySelector('.cropper-crop-box');
@@ -227,10 +225,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 var data = cropperInstance.getData();
                 updateCoordDisplay(data);
 
-                // サーバーからどんぶり座標が既に来ていたら即適用
-                if (serverProcessingState.bowlData && !bowlApplied) {
-                    applyBowlDetection(serverProcessingState.bowlData);
-                }
+                // AI自動検知は使わない → 手動調整のみ
+                coordStatus.textContent = '📌 円を動かして調整';
+                coordStatus.className = 'coord-ok';
             },
 
             crop: function(event) {
@@ -241,94 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // ========================================
-    // どんぶり検知結果をCropper.jsに適用
-    // ========================================
-    function applyBowlDetection(bowl) {
-        if (!cropperInstance || bowlApplied) return;
-        bowlApplied = true;
-
-        console.log('========================================');
-        console.log('🎯 どんぶり検知結果を適用: method=' + bowl.method);
-        console.log('   cx=' + bowl.cx.toFixed(3) + ' cy=' + bowl.cy.toFixed(3) + ' r=' + bowl.r.toFixed(3));
-
-        var imageData = cropperInstance.getImageData();
-        var natW = imageData.naturalWidth;
-        var natH = imageData.naturalHeight;
-        var minDim = Math.min(natW, natH);
-
-        // 比率 → 実ピクセル座標に変換
-        var cx = bowl.cx * natW;
-        var cy = bowl.cy * natH;
-        var r = bowl.r * minDim;
-
-        // Cropper.jsのsetDataは左上座標 + 幅高さ
-        var cropX = cx - r;
-        var cropY = cy - r;
-        var cropW = r * 2;
-        var cropH = r * 2;
-
-        // 範囲チェック（右側・下側切れ防止: 座標を内側にシフト）
-        if (cropX < 0) {
-            cropX = 0;
-        }
-        if (cropY < 0) {
-            cropY = 0;
-        }
-        if (cropX + cropW > natW) {
-            // 右側が切れる場合: 幅を縮めるのではなく、左にシフト
-            cropX = Math.max(0, natW - cropW);
-            if (cropX + cropW > natW) cropW = natW - cropX;
-        }
-        if (cropY + cropH > natH) {
-            // 下側が切れる場合: 上にシフト
-            cropY = Math.max(0, natH - cropH);
-            if (cropY + cropH > natH) cropH = natH - cropY;
-        }
-        // 正方形を維持（縦横の小さい方に合わせる）
-        var minCropSize = Math.min(cropW, cropH);
-        cropW = minCropSize;
-        cropH = minCropSize;
-
-        console.log('📐 Cropper座標にセット: X=' + Math.round(cropX) + ' Y=' + Math.round(cropY) +
-            ' W=' + Math.round(cropW) + ' H=' + Math.round(cropH));
-
-        cropperInstance.setData({
-            x: cropX,
-            y: cropY,
-            width: cropW,
-            height: cropH
-        });
-
-        // 座標表示を更新
-        updateCoordDisplay({ x: cropX, y: cropY, width: cropW, height: cropH });
-
-        // ボタンをアンロック
-        cropDoneBtn.disabled = false;
-        cropDoneBtn.classList.remove('locked');
-
-        // 自動確定は廃止 → ユーザーがOKを押すまで待つ
-        if (bowl.method === 'hough') {
-            coordStatus.textContent = '🎯 AI検知: 完璧';
-            coordStatus.className = 'coord-perfect';
-            showToast('🎯 どんぶりを自動検知しました', 2000);
-            cropDoneBtn.textContent = '✅ OK → 店名入力へ';
-        } else if (bowl.method === 'contour') {
-            coordStatus.textContent = '🎯 輪郭検知: 良好';
-            coordStatus.className = 'coord-ok';
-            showToast('🎯 どんぶり輪郭を検知しました', 2000);
-            cropDoneBtn.textContent = '✅ OK → 店名入力へ';
-        } else {
-            coordStatus.textContent = '📌 推定位置';
-            coordStatus.className = 'coord-ok';
-            cropDoneBtn.textContent = '✅ OK → 店名入力へ';
-        }
-
-        console.log('✅ 切り抜き枠をどんぶり位置に自動セット完了');
-        console.log('========================================');
-    }
-
-    // ========================================
-    // バックグラウンド処理
+    // バックグラウンド処理（店名検出のみ、どんぶり検知は使わない）
     // ========================================
     async function processInBackground(file) {
         var pid = ++currentProcessId;
@@ -337,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
             bowlData: null, error: null
         };
 
-        showBackgroundProgress('どんぶり検知 + 店名検出中...');
+        showBackgroundProgress('店名検出中...');
 
         try {
             var resized = await resizeImage(file, 1200);
@@ -353,25 +263,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             serverProcessingState.isProcessing = false;
             serverProcessingState.detectedShopName = data.shop_name;
-            serverProcessingState.bowlData = data.bowl;
             currentFilename = data.filename;
 
-            // どんぶり検知結果をCropperに適用
-            if (data.bowl && cropperInstance && !bowlApplied) {
-                applyBowlDetection(data.bowl);
-            } else if (data.bowl && !cropperInstance) {
-                console.log('📌 Cropper未準備 → ready時に適用予定');
-            }
-
-            // どんぶり検知なし + Cropper準備済みの場合はボタンアンロック
-            if (!data.bowl && cropperInstance) {
-                cropDoneBtn.disabled = false;
-                cropDoneBtn.textContent = '✅ この切り抜きで決定 → 店名入力へ';
-                cropDoneBtn.classList.remove('locked');
-                coordStatus.textContent = '📌 手動調整';
-                coordStatus.className = 'coord-ok';
-            }
-
+            // 店名検出結果を通知（切り抜きには影響しない）
             if (data.shop_name && !data.shop_name.includes('判定不能')) {
                 showToast('🚀 店名検出: ' + data.shop_name, 3000);
             }
@@ -382,15 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
             serverProcessingState.isProcessing = false;
             serverProcessingState.error = err.message;
             hideBackgroundProgress();
-
-            cropDoneBtn.disabled = false;
-            cropDoneBtn.textContent = '✅ この切り抜きで決定 → 店名入力へ';
-            cropDoneBtn.classList.remove('locked');
-            coordStatus.textContent = '⚠️ 手動調整';
-            coordStatus.className = 'coord-ok';
-
-            showToast('⚠️ サーバー処理失敗（手動調整可）', 5000);
-            console.error('❌ エラー:', err);
+            console.error('❌ 店名検出エラー:', err);
         }
     }
 
@@ -487,21 +373,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     backBtn.addEventListener('click', function() {
         appState = 'cropping';
-        bowlApplied = false;
         editSection.classList.add('hidden');
         cropSection.classList.remove('hidden');
 
-        cropDoneBtn.disabled = true;
-        cropDoneBtn.textContent = '⏳ 再初期化中...';
+        cropDoneBtn.disabled = false;
+        cropDoneBtn.textContent = '✅ OK → 店名入力へ';
 
         if (currentBlobUrl) {
             cropPreview.onload = function() {
                 initCropper();
-                if (serverProcessingState.bowlData) {
-                    setTimeout(function() {
-                        if (cropperInstance) applyBowlDetection(serverProcessingState.bowlData);
-                    }, 300);
-                }
             };
             cropPreview.src = '';
             cropPreview.src = currentBlobUrl;
@@ -551,7 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resetBtn.addEventListener('click', resetApp);
     function resetApp() {
         cleanupBlobUrl(); destroyCropper();
-        appState = 'idle'; bowlApplied = false;
+        appState = 'idle';
         uploadSection.classList.remove('hidden');
         loading.classList.add('hidden');
         cropSection.classList.add('hidden');
@@ -651,18 +531,15 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.shops && data.shops.length > 0) {
-                    var ramenCount = data.shops.filter(function(s) { return s.is_ramen; }).length;
-                    if (statusEl) statusEl.textContent = '🍜 ' + ramenCount + '件のラーメン店 / 全' + data.shops.length + '件';
+                    // ラーメン店のみ表示（APIがラーメン店のみ返す）
+                    if (statusEl) statusEl.textContent = '🍜 ' + data.shops.length + '件のラーメン店';
 
                     data.shops.forEach(function(shop) {
                         if (shop.lat && shop.lon) {
-                            var isRamen = shop.is_ramen;
-                            var color = isRamen ? '#E60012' : '#666';
-                            var emoji = isRamen ? '🍜' : '🍴';
-
+                            // ラーメンアイコンのみ（フォークとナイフは表示しない）
                             var icon = L.divIcon({
                                 className: 'ramen-marker',
-                                html: '<div class="ramen-pin" style="background:' + color + '">' + emoji + '</div>',
+                                html: '<div class="ramen-pin" style="background:#E60012">🍜</div>',
                                 iconSize: [32, 32],
                                 iconAnchor: [16, 16]
                             });
@@ -672,7 +549,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             var popupHtml = '<b>' + shop.name + '</b><br>' +
                                 '<span style="color:#888">' + shop.distance + 'm</span>' +
-                                (shop.cuisine ? ' / ' + shop.cuisine : '') +
                                 '<br><a href="https://www.google.com/maps/dir/?api=1&destination=' +
                                 shop.lat + ',' + shop.lon +
                                 '" target="_blank" style="color:#4285f4;text-decoration:none;font-weight:bold">' +
