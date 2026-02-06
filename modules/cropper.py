@@ -290,29 +290,86 @@ def save_simple(image_data, output_path):
         return False
 
 
-def crop_bowl(image_data, output_path=None):
-    """画像保存（EXIF回転適用）"""
-    if output_path:
-        return save_simple(image_data, output_path)
-    else:
-        try:
-            if isinstance(image_data, Image.Image):
-                img = image_data.copy()
-            elif isinstance(image_data, bytes):
-                img = Image.open(BytesIO(image_data))
-            elif isinstance(image_data, BytesIO):
-                image_data.seek(0)
-                img = Image.open(image_data)
-            elif isinstance(image_data, str):
-                img = Image.open(image_data)
-            else:
-                return None
-            img = apply_exif_rotation(img)
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-            output = BytesIO()
-            img.save(output, format='JPEG', quality=95)
-            output.seek(0)
-            return output
-        except:
-            return None
+def crop_bowl(image_path, output_path):
+    """
+    どんぶり検知→一撃切り抜き
+    OpenCVでどんぶりを検知し、その位置で正方形切り抜きを実行
+    """
+    try:
+        # まず画像を開いてEXIF回転
+        img = Image.open(image_path)
+        img = apply_exif_rotation(img)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        w, h = img.size
+
+        # どんぶり検知
+        bowl = detect_bowl(image_path)
+
+        if bowl:
+            cx = bowl['cx'] * w
+            cy = bowl['cy'] * h
+            r = bowl['r'] * min(w, h)
+
+            # 正方形の切り抜き範囲を計算
+            crop_size = int(r * 2)
+            left = int(cx - r)
+            top = int(cy - r)
+            right = int(cx + r)
+            bottom = int(cy + r)
+
+            # 範囲チェック（画像外にはみ出さないように調整）
+            if left < 0:
+                right -= left
+                left = 0
+            if top < 0:
+                bottom -= top
+                top = 0
+            if right > w:
+                left -= (right - w)
+                right = w
+            if bottom > h:
+                top -= (bottom - h)
+                bottom = h
+
+            # 再度範囲チェック
+            left = max(0, left)
+            top = max(0, top)
+            right = min(w, right)
+            bottom = min(h, bottom)
+
+            # 正方形を維持
+            crop_w = right - left
+            crop_h = bottom - top
+            if crop_w != crop_h:
+                min_size = min(crop_w, crop_h)
+                right = left + min_size
+                bottom = top + min_size
+
+            print(f"✂️ どんぶり一撃切り抜き: ({left},{top}) -> ({right},{bottom})")
+            cropped = img.crop((left, top, right, bottom))
+        else:
+            # 検知失敗時は中央80%で切り抜き
+            crop_size = int(min(w, h) * 0.80)
+            left = (w - crop_size) // 2
+            top = (h - crop_size) // 2
+            right = left + crop_size
+            bottom = top + crop_size
+            print(f"📌 フォールバック中央切り抜き: ({left},{top}) -> ({right},{bottom})")
+            cropped = img.crop((left, top, right, bottom))
+
+        # 出力ディレクトリ確認
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+
+        # 保存
+        cropped.save(output_path, format='JPEG', quality=95)
+        print(f"✅ 切り抜き保存完了: {output_path}")
+        return True
+
+    except Exception as e:
+        print(f"❌ 切り抜きエラー: {e}")
+        import traceback
+        traceback.print_exc()
+        return False

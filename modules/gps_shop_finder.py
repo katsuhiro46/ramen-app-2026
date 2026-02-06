@@ -22,21 +22,29 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 
 def is_ramen_shop(name: str, cuisine: str = '') -> bool:
-    """ラーメン店かどうか判定"""
-    ramen_keywords = [
+    """
+    ラーメン店かどうか厳格に判定
+    店名に「ラーメン」が含まれる OR cuisine=ramen のみ許可
+    """
+    # 厳格なラーメンキーワード（ラーメン専門店のみ）
+    strict_keywords = [
         'ラーメン', 'らーめん', 'らぁめん', '拉麺',
-        '麺', '中華そば', 'つけ麺', '担々', 'タンタン',
-        '麺屋', '麺や', '麺処',
-        'ramen', 'noodle'
+        '中華そば', 'つけ麺', '担々麺', 'タンタン麺',
+        '麺屋', '麺や', '麺処', '麺家', '麺道',
     ]
-    
-    name_lower = name.lower()
-    cuisine_lower = cuisine.lower()
-    
-    for kw in ramen_keywords:
-        if kw in name or kw in name_lower or kw in cuisine_lower:
+
+    name_check = name.lower()
+    cuisine_check = cuisine.lower()
+
+    # cuisine に ramen が含まれていれば OK
+    if 'ramen' in cuisine_check:
+        return True
+
+    # 店名にラーメン関連キーワードが含まれていれば OK
+    for kw in strict_keywords:
+        if kw in name or kw.lower() in name_check:
             return True
-    
+
     return False
 
 
