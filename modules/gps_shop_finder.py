@@ -153,25 +153,25 @@ def find_shop_by_gps(lat: float, lon: float, ocr_text: str = None) -> Dict:
     }
     
     all_candidates = []
-    
-    # Step 1: 200m以内を検索
-    print("\n--- Restaurant Search (200m) ---")
-    candidates_200 = search_nearby_ramen(lat, lon, 200)
-    all_candidates.extend(candidates_200)
-    
-    # Step 2: 見つからなければ500mに拡大
+
+    # Step 1: 500m以内を検索
+    print("\n--- Restaurant Search (500m) ---")
+    candidates_500 = search_nearby_ramen(lat, lon, 500)
+    all_candidates.extend(candidates_500)
+
+    # Step 2: 見つからなければ2kmに拡大
     if len(all_candidates) < 3:
-        print("\n--- Restaurant Search (500m) ---")
-        candidates_500 = search_nearby_ramen(lat, lon, 500)
-        for c in candidates_500:
+        print("\n--- Restaurant Search (2km) ---")
+        candidates_2k = search_nearby_ramen(lat, lon, 2000)
+        for c in candidates_2k:
             if c['name'] not in [x['name'] for x in all_candidates]:
                 all_candidates.append(c)
-    
-    # Step 3: まだ少なければ1000mに拡大
+
+    # Step 3: まだ少なければ5kmに拡大
     if len(all_candidates) < 3:
-        print("\n--- Restaurant Search (1000m) ---")
-        candidates_1000 = search_nearby_ramen(lat, lon, 1000)
-        for c in candidates_1000:
+        print("\n--- Restaurant Search (5km) ---")
+        candidates_5k = search_nearby_ramen(lat, lon, 5000)
+        for c in candidates_5k:
             if c['name'] not in [x['name'] for x in all_candidates]:
                 all_candidates.append(c)
     

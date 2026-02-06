@@ -1,7 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🍜 ラーメンアプリ起動');
 
-    // 要素
+    // ========================================
+    // DOM Elements
+    // ========================================
     const dropZone = document.getElementById('drop-zone');
     const cameraInput = document.getElementById('camera-input');
     const libraryInput = document.getElementById('library-input');
@@ -30,12 +32,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const shareBtn = document.getElementById('share-btn');
     const resetBtn = document.getElementById('reset-btn');
 
+    // ========================================
+    // State
+    // ========================================
     let currentFilename = null;
     let cropperInstance = null;
     let appState = 'idle';
     let currentBlobUrl = null;
     let currentProcessId = 0;
-    let bowlApplied = false;  // どんぶり検知が適用済みか
+    let bowlApplied = false;
 
     let serverProcessingState = {
         isProcessing: false,
@@ -74,7 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // UI
+    // ========================================
+    // UI Utilities
+    // ========================================
     function showBackgroundProgress(msg) {
         var el = document.getElementById('background-progress');
         if (el) el.remove();
@@ -113,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ========================================
-    // 写真アップロード（カメラ・ライブラリ共通）
+    // 写真アップロード
     // ========================================
     cameraInput.addEventListener('change', function(e) {
         var f = e.target.files[0];
@@ -172,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // src設定 → onload発火
         cropPreview.src = correctedUrl;
 
-        // バックグラウンドでサーバー処理（どんぶり検知 + 店名検出）
+        // バックグラウンドでサーバー処理
         processInBackground(file);
     }
 
@@ -232,6 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+
     // ========================================
     // どんぶり検知結果をCropper.jsに適用
     // ========================================
@@ -259,11 +267,27 @@ document.addEventListener('DOMContentLoaded', () => {
         var cropW = r * 2;
         var cropH = r * 2;
 
-        // 範囲チェック
-        if (cropX < 0) cropX = 0;
-        if (cropY < 0) cropY = 0;
-        if (cropX + cropW > natW) cropW = natW - cropX;
-        if (cropY + cropH > natH) cropH = natH - cropY;
+        // 範囲チェック（右側・下側切れ防止: 座標を内側にシフト）
+        if (cropX < 0) {
+            cropX = 0;
+        }
+        if (cropY < 0) {
+            cropY = 0;
+        }
+        if (cropX + cropW > natW) {
+            // 右側が切れる場合: 幅を縮めるのではなく、左にシフト
+            cropX = Math.max(0, natW - cropW);
+            if (cropX + cropW > natW) cropW = natW - cropX;
+        }
+        if (cropY + cropH > natH) {
+            // 下側が切れる場合: 上にシフト
+            cropY = Math.max(0, natH - cropH);
+            if (cropY + cropH > natH) cropH = natH - cropY;
+        }
+        // 正方形を維持（縦横の小さい方に合わせる）
+        var minCropSize = Math.min(cropW, cropH);
+        cropW = minCropSize;
+        cropH = minCropSize;
 
         console.log('📐 Cropper座標にセット: X=' + Math.round(cropX) + ' Y=' + Math.round(cropY) +
             ' W=' + Math.round(cropW) + ' H=' + Math.round(cropH));
@@ -278,22 +302,25 @@ document.addEventListener('DOMContentLoaded', () => {
         // 座標表示を更新
         updateCoordDisplay({ x: cropX, y: cropY, width: cropW, height: cropH });
 
-        // ボタンをアンロック（自動検知成功 = 完璧な位置）
+        // ボタンをアンロック
         cropDoneBtn.disabled = false;
-        cropDoneBtn.textContent = '✅ この切り抜きで決定 → 店名入力へ';
         cropDoneBtn.classList.remove('locked');
 
+        // 自動確定は廃止 → ユーザーがOKを押すまで待つ
         if (bowl.method === 'hough') {
             coordStatus.textContent = '🎯 AI検知: 完璧';
             coordStatus.className = 'coord-perfect';
             showToast('🎯 どんぶりを自動検知しました', 2000);
+            cropDoneBtn.textContent = '✅ OK → 店名入力へ';
         } else if (bowl.method === 'contour') {
             coordStatus.textContent = '🎯 輪郭検知: 良好';
             coordStatus.className = 'coord-ok';
             showToast('🎯 どんぶり輪郭を検知しました', 2000);
+            cropDoneBtn.textContent = '✅ OK → 店名入力へ';
         } else {
             coordStatus.textContent = '📌 推定位置';
             coordStatus.className = 'coord-ok';
+            cropDoneBtn.textContent = '✅ OK → 店名入力へ';
         }
 
         console.log('✅ 切り抜き枠をどんぶり位置に自動セット完了');
@@ -333,7 +360,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.bowl && cropperInstance && !bowlApplied) {
                 applyBowlDetection(data.bowl);
             } else if (data.bowl && !cropperInstance) {
-                // Cropperがまだ未準備 → readyイベントで適用される
                 console.log('📌 Cropper未準備 → ready時に適用予定');
             }
 
@@ -357,7 +383,6 @@ document.addEventListener('DOMContentLoaded', () => {
             serverProcessingState.error = err.message;
             hideBackgroundProgress();
 
-            // エラーでもボタンはアンロック（手動操作を許可）
             cropDoneBtn.disabled = false;
             cropDoneBtn.textContent = '✅ この切り抜きで決定 → 店名入力へ';
             cropDoneBtn.classList.remove('locked');
@@ -472,7 +497,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentBlobUrl) {
             cropPreview.onload = function() {
                 initCropper();
-                // 前回の検知結果があれば再適用
                 if (serverProcessingState.bowlData) {
                     setTimeout(function() {
                         if (cropperInstance) applyBowlDetection(serverProcessingState.bowlData);
@@ -556,19 +580,191 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // 新店情報
+    // ========================================
+    // ラーメンマップ（Leaflet.js + OpenStreetMap）
+    // ========================================
+    var ramenMap = null;
+    var mapMarkers = [];
+
+    function initRamenMap() {
+        var mapEl = document.getElementById('ramen-map');
+        if (!mapEl || typeof L === 'undefined') {
+            console.log('📍 マップ初期化スキップ（要素なしまたはLeaflet未読み込み）');
+            return;
+        }
+
+        // デフォルト: 東京駅
+        ramenMap = L.map('ramen-map', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView([35.6762, 139.6503], 14);
+
+        // ズームコントロール右下
+        L.control.zoom({ position: 'bottomright' }).addTo(ramenMap);
+
+        // OpenStreetMap タイル（ダークテーマ風）
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            subdomains: 'abcd'
+        }).addTo(ramenMap);
+
+        // 位置情報取得
+        var statusEl = document.getElementById('map-status');
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                function(pos) {
+                    var lat = pos.coords.latitude;
+                    var lon = pos.coords.longitude;
+                    console.log('📍 現在地:', lat, lon);
+
+                    ramenMap.setView([lat, lon], 15);
+
+                    // 現在地マーカー
+                    L.marker([lat, lon], {
+                        icon: L.divIcon({
+                            className: 'user-marker',
+                            html: '<div class="user-dot"></div>',
+                            iconSize: [16, 16],
+                            iconAnchor: [8, 8]
+                        })
+                    }).addTo(ramenMap).bindPopup('現在地');
+
+                    // 周辺ラーメン店検索
+                    searchNearbyRamen(lat, lon);
+                },
+                function(err) {
+                    console.log('📍 位置情報取得失敗:', err.message);
+                    if (statusEl) statusEl.textContent = '📍 位置情報を許可してください';
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        } else {
+            if (statusEl) statusEl.textContent = '📍 位置情報非対応';
+        }
+    }
+
+    function searchNearbyRamen(lat, lon) {
+        var statusEl = document.getElementById('map-status');
+        if (statusEl) statusEl.textContent = '🔍 周辺のラーメン店を検索中...';
+
+        fetch('/api/nearby-ramen?lat=' + lat + '&lon=' + lon)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.shops && data.shops.length > 0) {
+                    var ramenCount = data.shops.filter(function(s) { return s.is_ramen; }).length;
+                    if (statusEl) statusEl.textContent = '🍜 ' + ramenCount + '件のラーメン店 / 全' + data.shops.length + '件';
+
+                    data.shops.forEach(function(shop) {
+                        if (shop.lat && shop.lon) {
+                            var isRamen = shop.is_ramen;
+                            var color = isRamen ? '#E60012' : '#666';
+                            var emoji = isRamen ? '🍜' : '🍴';
+
+                            var icon = L.divIcon({
+                                className: 'ramen-marker',
+                                html: '<div class="ramen-pin" style="background:' + color + '">' + emoji + '</div>',
+                                iconSize: [32, 32],
+                                iconAnchor: [16, 16]
+                            });
+
+                            var marker = L.marker([shop.lat, shop.lon], { icon: icon })
+                                .addTo(ramenMap);
+
+                            var popupHtml = '<b>' + shop.name + '</b><br>' +
+                                '<span style="color:#888">' + shop.distance + 'm</span>' +
+                                (shop.cuisine ? ' / ' + shop.cuisine : '') +
+                                '<br><a href="https://www.google.com/maps/dir/?api=1&destination=' +
+                                shop.lat + ',' + shop.lon +
+                                '" target="_blank" style="color:#4285f4;text-decoration:none;font-weight:bold">' +
+                                '📍 Google Maps ナビ</a>';
+
+                            marker.bindPopup(popupHtml);
+                            mapMarkers.push(marker);
+                        }
+                    });
+                } else {
+                    if (statusEl) statusEl.textContent = '周辺にラーメン店が見つかりませんでした';
+                }
+            })
+            .catch(function(err) {
+                console.error('Map search error:', err);
+                if (statusEl) statusEl.textContent = '検索に失敗しました';
+            });
+    }
+
+    // ========================================
+    // 新店情報（県別アコーディオン）
+    // ========================================
     async function fetchNews() {
         var container = document.getElementById('shop-container');
         try {
             var resp = await fetch('/api/news');
             var data = await resp.json();
             if (!data.shops || data.shops.length === 0) {
-                container.innerHTML = '<p class="empty-state">新店情報がありません</p>'; return;
+                container.innerHTML = '<p class="empty-state">新店情報がありません</p>';
+                return;
             }
+
+            // 県別にグループ化
+            var groups = {};
+            var prefOrder = ['群馬', '栃木', '茨城', '埼玉'];
+            var prefCodes = {
+                '群馬': 'gunma',
+                '栃木': 'tochigi',
+                '埼玉': 'saitama',
+                '茨城': 'ibaraki'
+            };
+
+            data.shops.forEach(function(shop) {
+                var area = shop.area || '不明';
+                if (!groups[area]) groups[area] = [];
+                groups[area].push(shop);
+            });
+
             container.innerHTML = '';
-            var ul = document.createElement('ul'); ul.className = 'shop-list';
-            data.shops.forEach(function(shop) { ul.appendChild(createShopItem(shop)); });
-            container.appendChild(ul);
+
+            prefOrder.forEach(function(pref) {
+                if (!groups[pref]) return;
+                var shops = groups[pref];
+                var code = prefCodes[pref] || 'default';
+
+                // アコーディオングループ
+                var group = document.createElement('div');
+                group.className = 'accordion-group';
+
+                // ヘッダー（タップで開閉）
+                var header = document.createElement('div');
+                header.className = 'accordion-header';
+                header.innerHTML =
+                    '<span class="accordion-badge" data-pref="' + code + '">' + pref + '</span>' +
+                    '<span class="accordion-title">' + pref + ' の新店 (' + shops.length + '件)</span>' +
+                    '<span class="accordion-arrow">▶</span>';
+
+                // コンテンツ（初期状態は非表示）
+                var content = document.createElement('div');
+                content.className = 'accordion-content';
+                content.style.display = 'none';
+
+                var ul = document.createElement('ul');
+                ul.className = 'shop-list';
+                shops.forEach(function(shop) {
+                    ul.appendChild(createShopItem(shop));
+                });
+                content.appendChild(ul);
+
+                // タップで開閉
+                header.addEventListener('click', function() {
+                    var isOpen = content.style.display !== 'none';
+                    content.style.display = isOpen ? 'none' : 'block';
+                    header.querySelector('.accordion-arrow').textContent = isOpen ? '▶' : '▼';
+                    header.classList.toggle('active', !isOpen);
+                });
+
+                group.appendChild(header);
+                group.appendChild(content);
+                container.appendChild(group);
+            });
+
         } catch (err) {
             container.innerHTML = '<div class="empty-state"><p>データの取得に失敗しました</p></div>';
         }
@@ -580,10 +776,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (shop.station && shop.station.trim()) metaParts.push(shop.station);
         if (shop.city && shop.city.trim()) metaParts.push(shop.city);
         var metaInfo = metaParts.join(' / ');
-        var prefCode = { '群馬': 'gunma', '栃木': 'tochigi', '埼玉': 'saitama', '茨城': 'ibaraki' }[shop.area] || 'default';
 
         li.innerHTML = '<div class="shop-header">' +
-            '<span class="shop-area-badge" data-pref="' + prefCode + '">' + shop.area + '</span>' +
             '<span class="shop-name-link">' + shop.name + '</span>' +
             '<button class="set-name-btn">↑入力</button>' +
             '<button class="navi-btn">📍ナビ</button></div>' +
@@ -605,5 +799,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return li;
     }
 
+    // ========================================
+    // 初期化
+    // ========================================
+    initRamenMap();
     fetchNews();
 });

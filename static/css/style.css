@@ -3,7 +3,6 @@
     --card-bg: #2d2d2d;
     --text-color: #ffffff;
     --accent-color: #E60012;
-    /* Ramen Red */
     --accent-hover: #ff1a1a;
     --border-radius: 12px;
 }
@@ -37,72 +36,90 @@ header p {
     font-size: 0.9rem;
 }
 
-/* Upload Buttons (Camera + Library) */
+/* ========================================
+   Upload Buttons - Minimal Icon Style
+   ======================================== */
 .upload-buttons {
     display: flex;
-    gap: 15px;
-    margin: 30px 0 15px;
+    gap: 32px;
+    justify-content: center;
+    align-items: center;
+    margin: 24px 0 12px;
 }
 
 .upload-btn {
-    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    padding: 30px 15px;
-    border-radius: var(--border-radius);
+    gap: 8px;
     cursor: pointer;
     transition: all 0.3s ease;
     text-decoration: none;
+    padding: 0;
+    background: none;
+    border: none;
 }
 
-.upload-btn .btn-icon {
-    font-size: 3rem;
-    margin-bottom: 8px;
+.upload-btn .btn-icon-circle {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.camera-btn .btn-icon-circle {
+    background: rgba(230, 0, 18, 0.12);
+    border: 1.5px solid rgba(230, 0, 18, 0.35);
+    color: #ff6666;
+}
+
+.library-btn .btn-icon-circle {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1.5px solid rgba(255, 255, 255, 0.12);
+    color: #999;
 }
 
 .upload-btn .btn-label {
-    font-size: 1rem;
-    font-weight: bold;
+    font-size: 0.72rem;
+    color: #666;
+    font-weight: 400;
+    letter-spacing: 0.5px;
 }
 
-.camera-btn {
-    background: linear-gradient(135deg, #E60012, #ff4444);
-    color: white;
-    border: 2px solid #ff6666;
+.upload-btn:hover .btn-icon-circle,
+.upload-btn:active .btn-icon-circle {
+    transform: scale(1.12);
 }
 
-.camera-btn:hover {
-    transform: scale(1.02);
-    box-shadow: 0 8px 25px rgba(230, 0, 18, 0.4);
+.camera-btn:hover .btn-icon-circle,
+.camera-btn:active .btn-icon-circle {
+    background: rgba(230, 0, 18, 0.25);
+    box-shadow: 0 4px 20px rgba(230, 0, 18, 0.3);
 }
 
-.library-btn {
-    background: var(--card-bg);
+.library-btn:hover .btn-icon-circle,
+.library-btn:active .btn-icon-circle {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.25);
     color: #ccc;
-    border: 2px solid #444;
-}
-
-.library-btn:hover {
-    border-color: #888;
-    color: white;
-    background: #333;
 }
 
 /* Drop Zone (smaller, secondary) */
 .drop-zone {
     display: block;
-    border: 1px dashed #444;
+    border: 1px dashed #333;
     border-radius: 8px;
-    padding: 15px;
+    padding: 12px;
     margin: 0 0 20px;
     cursor: pointer;
     transition: all 0.3s ease;
     background-color: transparent;
     text-align: center;
-    color: #555;
-    font-size: 0.8rem;
+    color: #444;
+    font-size: 0.75rem;
 }
 
 .drop-zone:hover,
@@ -110,9 +127,6 @@ header p {
     border-color: var(--accent-color);
     color: #888;
 }
-
-/* input[type=file]はHTMLでinline styleで非表示 */
-
 
 /* Sections */
 section {
@@ -494,30 +508,84 @@ input[type="text"].dragover {
 }
 
 @keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-/* News Section - Pro Tool Style */
+/* ========================================
+   ラーメンマップセクション
+   ======================================== */
+.map-section {
+    margin-top: 40px;
+}
+
+.ramen-map {
+    width: 100%;
+    height: 260px;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    background: #222;
+    border: 1px solid #333;
+}
+
+/* Leaflet カスタムマーカー */
+.user-marker {
+    background: none;
+    border: none;
+}
+
+.user-dot {
+    width: 14px;
+    height: 14px;
+    background: #4285f4;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 0 8px rgba(66, 133, 244, 0.6);
+}
+
+.ramen-marker {
+    background: none;
+    border: none;
+}
+
+.ramen-pin {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: white;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    border: 2px solid white;
+}
+
+/* Leaflet popup styling */
+.leaflet-popup-content-wrapper {
+    border-radius: 8px;
+}
+
+.leaflet-popup-content {
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.leaflet-popup-content b {
+    font-size: 14px;
+}
+
+/* ========================================
+   News Section - Pro Tool Style
+   ======================================== */
 .news-section {
-    margin-top: 60px;
+    margin-top: 40px;
 }
 
 .section-header {
@@ -541,7 +609,8 @@ input[type="text"].dragover {
 .shop-container {
     background: #1e1e1e;
     border-radius: 8px;
-    padding: 8px 0;
+    padding: 0;
+    overflow: hidden;
 }
 
 .loading-state {
@@ -564,6 +633,93 @@ input[type="text"].dragover {
     display: none;
 }
 
+/* ========================================
+   アコーディオン（県別折りたたみ）
+   ======================================== */
+.accordion-group {
+    border-bottom: 1px solid #2a2a2a;
+}
+
+.accordion-group:last-child {
+    border-bottom: none;
+}
+
+.accordion-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.accordion-header:hover {
+    background: #252525;
+}
+
+.accordion-header.active {
+    background: #222;
+}
+
+.accordion-badge {
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    flex-shrink: 0;
+    background: var(--accent-color);
+    color: white;
+}
+
+.accordion-badge[data-pref="gunma"] {
+    background: #E60012;
+    color: white;
+}
+
+.accordion-badge[data-pref="tochigi"] {
+    background: #0066CC;
+    color: white;
+}
+
+.accordion-badge[data-pref="saitama"] {
+    background: #FFD700;
+    color: #000000;
+}
+
+.accordion-badge[data-pref="ibaraki"] {
+    background: #228B22;
+    color: white;
+}
+
+.accordion-title {
+    flex: 1;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #ccc;
+}
+
+.accordion-arrow {
+    color: #666;
+    font-size: 0.75rem;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+}
+
+.accordion-content {
+    overflow: hidden;
+}
+
+.accordion-content .shop-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* ========================================
+   Shop List Items
+   ======================================== */
 .shop-list {
     list-style: none;
     padding: 0;
@@ -571,29 +727,22 @@ input[type="text"].dragover {
 }
 
 .shop-item {
-    padding: 18px 16px;
-    border-bottom: 1px solid #333;
+    padding: 14px 16px 14px 28px;
+    border-top: 1px solid #2a2a2a;
     background: #1a1a1a;
+    cursor: pointer;
+    transition: background 0.2s;
 }
 
-.shop-item:first-child {
-    border-radius: 8px 8px 0 0;
-}
-
-.shop-item:last-child {
-    border-bottom: none;
-    border-radius: 0 0 8px 8px;
-}
-
-.shop-item:only-child {
-    border-radius: 8px;
+.shop-item:hover {
+    background: #222;
 }
 
 .shop-header {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 /* PREFECTURE BADGES - Color Coded */
@@ -603,30 +752,25 @@ input[type="text"].dragover {
     font-size: 0.7rem;
     font-weight: 600;
     flex-shrink: 0;
-    /* Default */
     background: var(--accent-color);
     color: white;
 }
 
-/* 群馬: 赤 / 白 */
 .shop-area-badge[data-pref="gunma"] {
     background: #E60012;
     color: white;
 }
 
-/* 栃木: 青 / 白 */
 .shop-area-badge[data-pref="tochigi"] {
     background: #0066CC;
     color: white;
 }
 
-/* 埼玉: 黄 / 黒 */
 .shop-area-badge[data-pref="saitama"] {
     background: #FFD700;
     color: #000000;
 }
 
-/* 茨城: 緑 / 白 */
 .shop-area-badge[data-pref="ibaraki"] {
     background: #228B22;
     color: white;
@@ -706,23 +850,10 @@ input[type="text"].dragover {
 
 /* SUB INFO - Small, Subdued */
 .shop-meta {
-    margin-top: 6px;
-    font-size: 0.75rem;
-    color: #777;
+    margin-top: 4px;
+    font-size: 0.73rem;
+    color: #666;
     letter-spacing: 0.2px;
-}
-
-/* 店舗アイテムのクリック可能表示 */
-.shop-item {
-    padding: 18px 16px;
-    border-bottom: 1px solid #333;
-    background: #1a1a1a;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.shop-item:hover {
-    background: #2a2a2a;
 }
 
 
@@ -745,7 +876,7 @@ input[type="text"].dragover {
 }
 
 /* ========================================
-   デバッグパネル（大きく見やすく）
+   デバッグパネル
    ======================================== */
 .debug-panel {
     background: #333;
@@ -985,14 +1116,12 @@ input[type="text"].dragover {
    ======================================== */
 #crop-preview {
     transition: opacity 0.3s ease;
-    /* Cropper.jsが制御するため最大幅を設定 */
     max-width: 100%;
     display: block;
 }
 
 /* ========================================
    Cropper.js カスタムスタイル
-   どんぶりギリギリ切り抜き用
    ======================================== */
 .cropper-wrapper {
     width: 100%;
@@ -1056,7 +1185,7 @@ input[type="text"].dragover {
 }
 
 /* ========================================
-   切り抜き座標モニター（デカデカ表示）
+   切り抜き座標モニター
    ======================================== */
 .crop-coords {
     display: flex;
@@ -1101,6 +1230,18 @@ input[type="text"].dragover {
     animation: blink-error 1.5s infinite;
 }
 
+/* 自動確定カウントダウン */
+.coord-autoconfirm {
+    color: #00ffcc;
+    font-weight: bold;
+    animation: pulse-glow 1s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% { text-shadow: 0 0 5px rgba(0, 255, 204, 0.3); }
+    50% { text-shadow: 0 0 15px rgba(0, 255, 204, 0.8); }
+}
+
 @keyframes blink-error {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
@@ -1117,7 +1258,9 @@ input[type="text"].dragover {
     border: 2px dashed #555 !important;
 }
 
-/* モバイル対応 */
+/* ========================================
+   モバイル対応
+   ======================================== */
 @media (max-width: 600px) {
     .background-progress {
         bottom: 10px;
@@ -1150,5 +1293,18 @@ input[type="text"].dragover {
 
     #coord-values {
         font-size: 0.85rem;
+    }
+
+    .upload-buttons {
+        gap: 28px;
+    }
+
+    .upload-btn .btn-icon-circle {
+        width: 52px;
+        height: 52px;
+    }
+
+    .ramen-map {
+        height: 220px;
     }
 }

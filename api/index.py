@@ -429,6 +429,44 @@ def result_file(filename):
     return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
 
 
+@app.route('/api/nearby-ramen')
+def nearby_ramen():
+    """現在地周辺のラーメン店を検索（マップ表示用）- 5km範囲、自動拡張対応"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    if lat is None or lon is None:
+        return jsonify({'error': 'lat and lon required'}), 400
+
+    try:
+        # まず5km範囲で検索
+        candidates = gps_shop_finder.search_nearby_ramen(lat, lon, 5000)
+
+        # 店が見つからなければ10km→20kmに自動拡張
+        if len(candidates) == 0:
+            print("[API] 5km内に店舗なし → 10kmに拡張")
+            candidates = gps_shop_finder.search_nearby_ramen(lat, lon, 10000)
+
+        if len(candidates) == 0:
+            print("[API] 10km内に店舗なし → 20kmに拡張")
+            candidates = gps_shop_finder.search_nearby_ramen(lat, lon, 20000)
+
+        shops = []
+        for c in candidates:
+            shops.append({
+                'name': c.get('name', ''),
+                'lat': c.get('lat'),
+                'lon': c.get('lon'),
+                'distance': round(c.get('distance', 0)),
+                'is_ramen': c.get('is_ramen', False),
+                'cuisine': c.get('cuisine', '')
+            })
+        shops.sort(key=lambda x: x['distance'])
+        return jsonify({'shops': shops[:20]})
+    except Exception as e:
+        print(f"Nearby ramen error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/news')
 def get_news():
     try:
