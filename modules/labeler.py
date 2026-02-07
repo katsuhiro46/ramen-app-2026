@@ -5,8 +5,8 @@ import os
 def add_label(image_path, text):
     """
     画像の下部に店名ラベルを追加する（goal.jpg完全再現版）
-    - フォントサイズ: 画像高さの10%
-    - 太い白文字 + 極太黒縁取り
+    - フォントサイズ: 画像高さの15%
+    - 太い白文字 + 極太黒縁取り（5px以上）
     - 半透明バーなし（テキスト直接配置）
     """
     try:
@@ -16,10 +16,10 @@ def add_label(image_path, text):
         # EXIF データを先に取得
         exif_data = img.info.get('exif')
 
-        # フォントサイズ: 画像高さの10%（goal.jpgと同じ）
-        font_size = int(height * 0.10)
-        if font_size < 36:
-            font_size = 36
+        # フォントサイズ: 画像高さの15%（goal.jpg完全再現）
+        font_size = int(height * 0.15)
+        if font_size < 48:
+            font_size = 48
 
         # フォント探索（macOS + Linux/Vercel）
         font_paths = [
@@ -62,8 +62,8 @@ def add_label(image_path, text):
 
         draw = ImageDraw.Draw(img)
 
-        # 極太の黒縁取り + 白文字（goal.jpgと同じスタイル）
-        stroke_w = max(4, int(font_size / 4))
+        # 極太の黒縁取り + 白文字（5px以上の太縁）
+        stroke_w = max(5, int(font_size / 3))
         draw.text(
             (x, y), text, font=font,
             fill=(255, 255, 255),
