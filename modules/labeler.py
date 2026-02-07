@@ -4,24 +4,24 @@ import os
 
 def add_label(image_path, text):
     """
-    画像の下部に店名ラベルを追加する
-    - フォントサイズ: 画像高さの15%（看板レベルの巨大サイズ）
-    - 極太縁取り（ストローク）
-    - 半透明の黒背景バーで視認性を極限まで向上
+    画像の下部に店名ラベルを追加する（goal.jpg完全再現版）
+    - フォントサイズ: 画像高さの10%
+    - 太い白文字 + 極太黒縁取り
+    - 半透明バーなし（テキスト直接配置）
     """
     try:
         img = Image.open(image_path)
         width, height = img.size
 
-        # EXIF データを先に取得（後で保存時に使用）
+        # EXIF データを先に取得
         exif_data = img.info.get('exif')
 
-        # フォントサイズ: 画像高さの15%（看板のように巨大）
-        font_size = int(height * 0.15)
-        if font_size < 48:
-            font_size = 48
+        # フォントサイズ: 画像高さの10%（goal.jpgと同じ）
+        font_size = int(height * 0.10)
+        if font_size < 36:
+            font_size = 36
 
-        # フォント探索（複数パス対応: macOS + Linux/Vercel）
+        # フォント探索（macOS + Linux/Vercel）
         font_paths = [
             "/System/Library/Fonts/ヒラギノ角ゴシック W8.ttc",
             "/System/Library/Fonts/Hiragino Sans GB.ttc",
@@ -52,46 +52,32 @@ def add_label(image_path, text):
         text_w = bbox[2] - bbox[0]
         text_h = bbox[3] - bbox[1]
 
-        # 半透明背景バーの領域計算
-        bar_pad = int(height * 0.018)
-        bar_extra = int(font_size * 0.4)
-        bar_height = text_h + bar_pad * 2 + bar_extra
-        bar_y = height - bar_height
-
-        # RGBA に変換して半透明オーバーレイ合成
-        if img.mode != 'RGBA':
-            img = img.convert('RGBA')
-
-        overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        overlay_draw = ImageDraw.Draw(overlay)
-        # グラデーション風の半透明黒バー（不透明度67%）
-        overlay_draw.rectangle(
-            [(0, bar_y), (width, height)],
-            fill=(0, 0, 0, 170)
-        )
-        img = Image.alpha_composite(img, overlay)
-
-        # テキスト描画: 太い縁取り + 白文字
-        draw = ImageDraw.Draw(img)
+        # テキスト位置: 画像下部中央（goal.jpgと同じ配置）
         x = (width - text_w) / 2
-        y = bar_y + bar_pad + int(bar_extra * 0.25)
+        y = height - text_h - int(height * 0.02)  # 下から2%のマージン
 
-        # 極太の黒縁（看板のように目立たせる）
-        stroke_w = max(6, int(font_size / 3))
+        # RGBモードで描画（半透明バーなし）
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+
+        draw = ImageDraw.Draw(img)
+
+        # 極太の黒縁取り + 白文字（goal.jpgと同じスタイル）
+        stroke_w = max(4, int(font_size / 4))
         draw.text(
             (x, y), text, font=font,
-            fill=(255, 255, 255, 255),
+            fill=(255, 255, 255),
             stroke_width=stroke_w,
-            stroke_fill=(0, 0, 0, 255)
+            stroke_fill=(0, 0, 0)
         )
 
-        # RGB に戻して JPEG 保存
-        img = img.convert('RGB')
+        # JPEG 保存
         save_kwargs = {'format': 'JPEG', 'quality': 95}
         if exif_data:
             save_kwargs['exif'] = exif_data
         img.save(image_path, **save_kwargs)
 
+        print(f"✅ ラベル追加完了: {text} (font={font_size}px, stroke={stroke_w}px)")
         return True
 
     except Exception as e:

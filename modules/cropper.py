@@ -127,12 +127,12 @@ def detect_bowl(image_path):
 
 
 def _try_hough_circles(blurred, w, h, min_dim):
-    """HoughCirclesで円を検出"""
+    """HoughCirclesで円を検出（goal.jpg基準: 大きめの円を優先）"""
     print("🔍 戦略1: HoughCircles...")
 
-    # どんぶりのサイズ範囲を拡大（画像の短辺の15%〜50%が半径）
-    min_r = int(min_dim * 0.15)
-    max_r = int(min_dim * 0.50)
+    # どんぶりのサイズ範囲（画像の短辺の20%〜55%が半径）
+    min_r = int(min_dim * 0.20)
+    max_r = int(min_dim * 0.55)
 
     # パラメータを複数パターン試行（幅広い検出戦略）
     param_sets = [
@@ -226,8 +226,8 @@ def _try_contour_detection(blurred, w, h, min_dim):
         cy_ratio = float(cy) / h
         r_ratio = float(radius) / min_dim
 
-        # 半径が極端に大きい/小さい場合は除外
-        if 0.15 < r_ratio < 0.50:
+        # 半径が極端に大きい/小さい場合は除外（goal.jpg基準で大きめ許容）
+        if 0.20 < r_ratio < 0.55:
             print(f"✅ 輪郭検出成功!")
             print(f"   円: center=({int(cx)},{int(cy)}) radius={int(radius)}")
             print(f"   比率: cx={cx_ratio:.3f} cy={cy_ratio:.3f} r={r_ratio:.3f}")
@@ -240,12 +240,12 @@ def _try_contour_detection(blurred, w, h, min_dim):
 
 def _heuristic_center(w, h):
     """
-    最終手段: 中央ヒューリスティック
-    ラーメン写真は通常、どんぶりが画面中央やや上に位置する
+    最終手段: 中央ヒューリスティック（goal.jpg基準）
+    どんぶりが画面の85-90%を占めるように設定
     """
     cx_ratio = 0.50
-    cy_ratio = 0.45  # やや上寄り
-    r_ratio = 0.42   # 画像短辺の42%
+    cy_ratio = 0.47  # 中央やや上
+    r_ratio = 0.45   # 画像短辺の45%（直径90%）
 
     print(f"📌 中央ヒューリスティック: cx={cx_ratio} cy={cy_ratio} r={r_ratio}")
     print("=" * 70 + "\n")
@@ -349,8 +349,8 @@ def crop_bowl(image_path, output_path):
             print(f"✂️ どんぶり一撃切り抜き: ({left},{top}) -> ({right},{bottom})")
             cropped = img.crop((left, top, right, bottom))
         else:
-            # 検知失敗時は中央80%で切り抜き
-            crop_size = int(min(w, h) * 0.80)
+            # 検知失敗時は中央90%で切り抜き（goal.jpg基準）
+            crop_size = int(min(w, h) * 0.90)
             left = (w - crop_size) // 2
             top = (h - crop_size) // 2
             right = left + crop_size
